@@ -89,6 +89,9 @@ data class AppSettings(
     // Account (non-secret parts only; tokens live in SecureStore).
     val accountEmail: String? = null,
 
+    // First-run onboarding wizard shown until completed.
+    val onboardingComplete: Boolean = false,
+
     val requireConfirmationBeforeLock: Boolean = false,
 ) {
     val isConfigured: Boolean

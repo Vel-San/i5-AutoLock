@@ -8,6 +8,7 @@ import com.i5autolock.data.bluelink.model.CommandResult
 import com.i5autolock.data.bluelink.model.LockState
 import com.i5autolock.data.bluelink.model.Vehicle
 import com.i5autolock.data.bluelink.model.VehicleStatus
+import com.i5autolock.data.bluelink.model.mergedOnto
 import com.i5autolock.data.secure.SecureStore
 import com.i5autolock.data.secure.SessionTokens
 import io.ktor.client.HttpClient
@@ -282,7 +283,15 @@ class EuBlueLinkClient(
 
     override suspend fun status(vehicleId: String, forceRefresh: Boolean): VehicleStatus {
         ensureFreshSession()
-        val path = if (forceRefresh) "status" else "status/latest"
+        if (!forceRefresh) return fetchStatus(vehicleId, "status/latest")
+        // A forced read polls the car and often returns a minimal payload (no battery/range), so
+        // backfill from the cached "latest" report.
+        val forced = fetchStatus(vehicleId, "status")
+        val latest = runCatching { fetchStatus(vehicleId, "status/latest") }.getOrNull()
+        return forced.mergedOnto(latest)
+    }
+
+    private suspend fun fetchStatus(vehicleId: String, path: String): VehicleStatus {
         val response = http.get("${config.apiBaseUrl}/api/v1/spa/vehicles/$vehicleId/$path") {
             baseHeaders(this)
             header("Authorization", authHeader())

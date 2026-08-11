@@ -33,6 +33,8 @@ data class VehicleStatusUi(
     val status: VehicleStatus? = null,
     val lastRefreshEpochMs: Long? = null,
     val error: String? = null,
+    /** True when the session expired and the user needs to sign in again. */
+    val needsReauth: Boolean = false,
 )
 
 @HiltViewModel
@@ -42,6 +44,8 @@ class HomeViewModel @Inject constructor(
     private val controller: AutoLockController,
     private val provider: BlueLinkProvider,
     private val statusCache: StatusCache,
+    private val metrics: com.i5autolock.data.metrics.ApiMetrics,
+    private val secureStore: com.i5autolock.data.secure.SecureStore,
     activityLog: ActivityLog,
 ) : ViewModel() {
 
@@ -95,6 +99,49 @@ class HomeViewModel @Inject constructor(
 
     fun cancel() = controller.cancel()
 
+    /** Whether a BlueLink PIN is stored, so the UI knows to ask for it before a manual lock. */
+    fun hasPin(): Boolean = secureStore.loadPin() != null
+
+    private val _lockResult = MutableStateFlow<String?>(null)
+    val lockResult: StateFlow<String?> = _lockResult
+    fun clearLockResult() { _lockResult.value = null }
+
+    /** Manually lock now — gated by the BlueLink PIN when one is stored. */
+    fun manualLock(pin: String?) = viewModelScope.launch {
+        val s = settingsRepo.settings.first()
+        val stored = secureStore.loadPin()
+        if (stored != null && pin != stored) {
+            _lockResult.value = "Incorrect PIN."
+            return@launch
+        }
+        val vehicleId = s.vehicleId ?: run { _lockResult.value = "No vehicle selected."; return@launch }
+        val client = provider.client(s)
+        if (!s.demoMode && !client.ensureFreshSession()) {
+            _lockResult.value = "Session expired — sign in again."
+            _vehicleStatus.update { it.copy(needsReauth = true) }
+            return@launch
+        }
+        when (client.lock(vehicleId)) {
+            is com.i5autolock.data.bluelink.model.CommandResult.Success -> {
+                _lockResult.value = "Locked ✓"
+                refreshStatus(force = false)
+            }
+            com.i5autolock.data.bluelink.model.CommandResult.RateLimited -> _lockResult.value = "Rate-limited — try again shortly."
+            com.i5autolock.data.bluelink.model.CommandResult.NotAuthenticated -> {
+                _lockResult.value = "Not signed in."
+                _vehicleStatus.update { it.copy(needsReauth = true) }
+            }
+            is com.i5autolock.data.bluelink.model.CommandResult.Failure -> _lockResult.value = "Lock failed."
+        }
+    }
+
+    /** Switch the active vehicle (per-vehicle picker on Home). */
+    fun selectVehicle(v: com.i5autolock.data.settings.KnownVehicle) = viewModelScope.launch {
+        settingsRepo.update { it.copy(vehicleId = v.id, vehicleNickname = v.nickname) }
+        _vehicleStatus.update { it.copy(status = null, lastRefreshEpochMs = null) }
+        refreshStatus(force = false)
+    }
+
     fun refreshStatus(force: Boolean) = viewModelScope.launch {
         val s = settingsRepo.settings.first()
         if (s.vehicleId == null && !s.demoMode) {
@@ -103,6 +150,13 @@ class HomeViewModel @Inject constructor(
         }
         if (!force && !s.autoRefreshOnOpen) return@launch
         if (force) {
+            // Respect the API's rate-limit cooldown so we don't get further throttled.
+            val snap = metrics.snapshot.value
+            if (snap.isRateLimited()) {
+                val secs = ((snap.rateLimitedUntilEpochMs!! - System.currentTimeMillis()) / 1000).coerceAtLeast(1)
+                _vehicleStatus.update { it.copy(loading = false, error = "Rate-limited — try again in ${secs}s.") }
+                return@launch
+            }
             val now = System.currentTimeMillis()
             if (now - lastFetchAtMs < MIN_REFRESH_INTERVAL_MS) {
                 _vehicleStatus.update { it.copy(loading = false, error = "Just refreshed — give it a few seconds.") }
@@ -114,8 +168,8 @@ class HomeViewModel @Inject constructor(
         _vehicleStatus.update { it.copy(loading = true, error = null) }
         val client = provider.client(s)
         if (!s.demoMode && !client.ensureFreshSession()) {
-            // Keep the last-known details visible; just surface the sign-in problem.
-            _vehicleStatus.update { it.copy(loading = false, error = "Not signed in.") }
+            // Session expired — keep details but prompt a re-sign-in.
+            _vehicleStatus.update { it.copy(loading = false, error = "Session expired — please sign in again.", needsReauth = true) }
             return@launch
         }
         runCatching { client.status(vehicleId, forceRefresh = force) }
@@ -127,6 +181,7 @@ class HomeViewModel @Inject constructor(
                     ui.copy(
                         loading = false,
                         error = null,
+                        needsReauth = false,
                         status = merged,
                         lastRefreshEpochMs = System.currentTimeMillis(),
                     )

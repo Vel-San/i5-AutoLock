@@ -37,5 +37,13 @@ object AppModule {
             connectTimeoutMillis = 15_000
             socketTimeoutMillis = 30_000
         }
+        engine {
+            config {
+                // No-op until real pins are supplied in CertPins (wrong pins would break connectivity).
+                if (com.i5autolock.data.bluelink.CertPins.enabled) {
+                    certificatePinner(com.i5autolock.data.bluelink.CertPins.pinner())
+                }
+            }
+        }
     }
 }

@@ -57,6 +57,7 @@ class SettingsRepository @Inject constructor(
         val VEHICLE_NICK = stringPreferencesKey("vehicle_nick")
         val KNOWN_VEHICLES = stringSetPreferencesKey("known_vehicles")
         val ACCOUNT_EMAIL = stringPreferencesKey("account_email")
+        val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val REQUIRE_CONFIRM = booleanPreferencesKey("require_confirm")
     }
 
@@ -102,6 +103,7 @@ class SettingsRepository @Inject constructor(
             }
             ?: emptyList(),
         accountEmail = this[Keys.ACCOUNT_EMAIL],
+        onboardingComplete = this[Keys.ONBOARDING_DONE] ?: false,
         requireConfirmationBeforeLock = this[Keys.REQUIRE_CONFIRM] ?: false,
     )
 
@@ -142,6 +144,7 @@ class SettingsRepository @Inject constructor(
                 .map { "${it.id}\u001F${it.nickname}\u001F${it.model}" }
                 .toSet()
             next.accountEmail?.let { prefs[Keys.ACCOUNT_EMAIL] = it } ?: prefs.remove(Keys.ACCOUNT_EMAIL)
+            prefs[Keys.ONBOARDING_DONE] = next.onboardingComplete
             prefs[Keys.REQUIRE_CONFIRM] = next.requireConfirmationBeforeLock
         }
     }

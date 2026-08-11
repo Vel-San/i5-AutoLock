@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -104,12 +105,30 @@ import java.util.Locale
 fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenHelp: () -> Unit,
+    onOpenLogin: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val autoLock by viewModel.autoLock.collectAsStateWithLifecycle()
     val log by viewModel.log.collectAsStateWithLifecycle()
     val vehicleStatus by viewModel.vehicleStatus.collectAsStateWithLifecycle()
+    val lockResult by viewModel.lockResult.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    var showLockDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(lockResult) {
+        lockResult?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearLockResult()
+        }
+    }
+    if (showLockDialog) {
+        LockNowDialog(
+            requirePin = viewModel.hasPin(),
+            onDismiss = { showLockDialog = false },
+            onConfirm = { pin -> showLockDialog = false; viewModel.manualLock(pin) },
+        )
+    }
 
     Box(Modifier.fillMaxSize().background(ambientBackground())) {
         Scaffold(
@@ -154,6 +173,18 @@ fun HomeScreen(
                             onToggle = viewModel::setEnabled,
                         )
                     }
+                    if (vehicleStatus.needsReauth) {
+                        item { ReauthBanner(onSignIn = onOpenLogin) }
+                    }
+                    if (settings.knownVehicles.size > 1) {
+                        item {
+                            VehicleSwitcher(
+                                vehicles = settings.knownVehicles,
+                                selectedId = settings.vehicleId,
+                                onSelect = viewModel::selectVehicle,
+                            )
+                        }
+                    }
                     item {
                         VehicleStatusCard(
                             ui = vehicleStatus,
@@ -197,11 +228,105 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            if (settings.isConfigured || settings.demoMode) {
+                                Button(
+                                    onClick = { showLockDialog = true },
+                                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
+                                ) {
+                                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Lock now", fontWeight = FontWeight.SemiBold)
+                                }
+                            }
                         }
                     }
                     item { SectionHeader("Recent activity") }
                     item { ActivityLogCard(log) }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LockNowDialog(requirePin: Boolean, onDismiss: () -> Unit, onConfirm: (String?) -> Unit) {
+    var pin by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
+        title = { Text("Lock the car now?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    if (requirePin) "Enter your BlueLink PIN to send a real lock command."
+                    else "This sends a lock command to your car.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (requirePin) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = pin,
+                        onValueChange = { if (it.length <= 8) pin = it.filter(Char::isDigit) },
+                        label = { Text("PIN") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(pin.ifBlank { null }) },
+                enabled = !requirePin || pin.length >= 4,
+            ) { Text("Lock now") }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun ReauthBanner(onSignIn: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+            Text(
+                "Your session expired. Sign in again to keep AutoLock working.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f),
+            )
+            Button(onClick = onSignIn) { Text("Sign in") }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun VehicleSwitcher(
+    vehicles: List<com.i5autolock.data.settings.KnownVehicle>,
+    selectedId: String?,
+    onSelect: (com.i5autolock.data.settings.KnownVehicle) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader("Vehicles")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            vehicles.forEach { v ->
+                androidx.compose.material3.FilterChip(
+                    selected = v.id == selectedId,
+                    onClick = { onSelect(v) },
+                    label = { Text(v.nickname) },
+                    leadingIcon = { Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                )
             }
         }
     }

@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">AutoLock</string>
+    <string name="notification_channel_name">Actividad de auto-bloqueo</string>
+    <string name="notification_channel_desc">Se muestra cuando AutoLock vigila si te alejas del coche.</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_skip">Omitir</string>
+    <string name="onboarding_back">Atrás</string>
+    <string name="onboarding_next">Siguiente</string>
+    <string name="onboarding_get_started">Empezar</string>
+    <string name="onboarding_welcome_title">Bienvenido a AutoLock</string>
+    <string name="onboarding_welcome_body">AutoLock hace una sola cosa: detecta cuando dejas tu Ioniq 5 sin cerrar y lo bloquea por ti, automáticamente.</string>
+    <string name="onboarding_how_title">Cómo funciona</string>
+    <string name="onboarding_how_body">Cuando tu teléfono se desconecta del Bluetooth del coche, AutoLock confirma que te has alejado, comprueba el estado del coche y lo bloquea.</string>
+    <string name="onboarding_safety_title">Seguro por defecto</string>
+    <string name="onboarding_safety_body">AutoLock empieza en modo de prueba: lo simula todo pero nunca envía un bloqueo real. Cambia a Activado en Ajustes cuando quieras. El modo Demo te permite probarlo sin cuenta.</string>
+    <string name="onboarding_setup_title">Termina la configuración</string>
+    <string name="onboarding_setup_body">A continuación, concede los permisos que AutoLock necesita, inicia sesión y elige tu coche y su dispositivo Bluetooth en Ajustes.</string>
+</resources>

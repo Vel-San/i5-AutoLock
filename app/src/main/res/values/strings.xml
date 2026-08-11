@@ -2,4 +2,18 @@
     <string name="app_name">AutoLock</string>
     <string name="notification_channel_name">Auto-lock activity</string>
     <string name="notification_channel_desc">Shows when AutoLock is watching for you leaving the car.</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_get_started">Get started</string>
+    <string name="onboarding_welcome_title">Welcome to AutoLock</string>
+    <string name="onboarding_welcome_body">AutoLock does one job: it notices when you\'ve left your unlocked Ioniq 5 and locks it for you — automatically.</string>
+    <string name="onboarding_how_title">How it works</string>
+    <string name="onboarding_how_body">When your phone disconnects from the car\'s Bluetooth, AutoLock confirms you walked away, checks the car\'s status, and locks it.</string>
+    <string name="onboarding_safety_title">Safe by default</string>
+    <string name="onboarding_safety_body">AutoLock starts in Dry run — it simulates everything but never sends a real lock. Switch to Armed in Settings when you\'re ready. Demo mode lets you try it with no account.</string>
+    <string name="onboarding_setup_title">Finish setup</string>
+    <string name="onboarding_setup_body">Next, grant the permissions AutoLock needs, then sign in and pick your car and its Bluetooth device in Settings.</string>
 </resources>

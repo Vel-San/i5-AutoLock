@@ -54,13 +54,8 @@ class BlueLinkProvider @Inject constructor(
                 appContext,
                 diag = { activityLog.add(LogLevel.INFO, it) },
             )
-            else -> EuBlueLinkClient(
-                httpClient,
-                RegionConfig.euHyundai(),
-                secureStore,
-                appContext,
-                diag = { activityLog.add(LogLevel.INFO, it) },
-            )
+            // US/CA/AU: not yet implemented — fail clearly instead of hitting EU endpoints.
+            else -> UnsupportedRegionClient(settings.region)
         }
         return MeteredBlueLinkClient(base, metrics)
     }

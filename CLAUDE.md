@@ -139,9 +139,16 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   also wired but as **distance polling** during the confirm window (`AutoLockController` captures the
   location at trigger and polls `LocationHelper.currentLocation()` every 3s, firing `MovedBeyondGeofence`
   past `geofenceRadiusMeters`) rather than the Play Services Geofence API (unreliable for a 20s window).
-- Cert-pinning: slots exist in `network_security_config.xml` but real pin hashes must be supplied
-  (fake pins would break connectivity) — intentionally not populated.
-- Custom bundled display font not added (needs binary font assets); type system uses system families.
+- Cert-pinning: slots exist in `network_security_config.xml` AND an OkHttp `CertPins` pinner is wired
+  into the Ktor engine (`di/AppModule`), but the pin map is empty (no-op) until real SPKI hashes are
+  supplied — fake pins would break connectivity.
+- Custom bundled display font not added (needs binary `.ttf` assets or a verified downloadable-fonts
+  certs blob); type system uses system families. Drop a font into `res/font` to enable.
+- Background geofence while the app is fully killed: current geofence is distance-polling during the
+  confirm window (needs the service alive); a Play `GeofencingClient` registered at arrival would be
+  more battery-friendly for long idle periods.
+- US/CA/AU: routed to `UnsupportedRegionClient` (fails clearly) until real region endpoints/clients are
+  implemented — the architecture routes by region in `BlueLinkProvider`.
 - EU endpoint/stamp values need live verification against the reference projects.
 
 ## 9. Changelog (append notable changes)
@@ -336,3 +343,24 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
     `AutoLockController` captures the spot at trigger and, when `useGeofence`, polls every 3s during
     CONFIRMING, firing `DetectionEvent.MovedBeyondGeofence` once you pass `geofenceRadiusMeters`. If it
     never fires, the 20s confirm timeout still proceeds — so it only ever speeds up confirmation.
+- Round 9 (reliability, security, onboarding, per-vehicle, i18n, regions, tests):
+  - EU status/latest fallback: `EuBlueLinkClient.status` splits into `fetchStatus(path)`; a forced read
+    merges `status` over `status/latest` so battery/range aren't lost.
+  - Rate-limit surfacing: `HomeViewModel` injects `ApiMetrics`; a forced refresh during
+    `snapshot.isRateLimited()` shows "Rate-limited — try again in Ns" instead of calling out.
+  - Re-auth: `VehicleStatusUi.needsReauth` + a Home `ReauthBanner` (→ Login) when the session expires.
+  - PIN-gated manual lock: Home "Lock now" button → `LockNowDialog` (asks the BlueLink PIN when stored
+    via `SecureStore.loadPin`) → `HomeViewModel.manualLock` → `client.lock`, result via Toast.
+  - Cert-pinning wired but no-op: `data/bluelink/CertPins` (empty pin map) applied to the OkHttp engine
+    in `di/AppModule` only when `CertPins.enabled`.
+  - Per-vehicle: `HomeViewModel.selectVehicle(KnownVehicle)` + Home `VehicleSwitcher` FilterChips shown
+    when `knownVehicles.size > 1`.
+  - Onboarding wizard: `ui/onboarding/OnboardingScreen` (HorizontalPager, 4 steps) gated by
+    `AppSettings.onboardingComplete`; `AppNavigation` shows it first-run, then the NavHost.
+  - Localization: onboarding + channel strings extracted to `res/values/strings.xml` with a full
+    `values-es` translation (proves i18n; rest of the app still has inline strings to migrate).
+  - Regions: US/CA/AU now route to `UnsupportedRegionClient` (fails clearly) instead of silently hitting
+    EU endpoints.
+  - Tests: `CachedStatusTest`, `UnsupportedRegionClientTest`.
+  - Still deferred: real cert-pin hashes, a bundled/downloadable font (needs assets/certs), and a
+    battery-friendly background `GeofencingClient` (needs arrival-capture).
