@@ -435,12 +435,14 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
     monochrome white alpha mask — full colour there is impossible by design; `ic_stat_autolock` already
     matches the app-icon padlock silhouette.
   - Show/hide status-bar icon toggle: `AppSettings.showNotificationIcon` (default true, `SettingsRepository`
-    `SHOW_NOTIF_ICON` key). Implemented via a second **minimal-importance** channel
-    (`AutoLockApp.CHANNEL_ID_MINIMAL`, `IMPORTANCE_MIN`) created in `NotificationChannels.ensure`; when the
-    toggle is off the ongoing notification posts on that channel (no status-bar icon, still in the shade).
-    Builders take a `channelId` param; `AutoLockService.channelId()` picks visible vs minimal from the
+    `SHOW_NOTIF_ICON` key). When off, the ongoing notification uses a **transparent** small icon
+    (`R.drawable.ic_stat_blank`) so nothing renders in the status bar (Android draws the small icon as an
+    alpha mask). It also posts on a minimal-importance channel (`AutoLockApp.CHANNEL_ID_MINIMAL`,
+    `IMPORTANCE_MIN`), but the transparent icon is what actually hides it — an `IMPORTANCE_MIN` channel
+    alone does NOT remove a foreground-service icon from the status bar on modern Android. Builders take
+    `channelId` + `@DrawableRes smallIcon`; `AutoLockService.channelId()`/`smallIcon()` pick them from the
     tracked `showNotificationIcon`. `SettingsViewModel.setShowNotificationIcon` re-asserts watch so it
-    applies immediately. Settings → Notification "Show status-bar icon"; strings in `values` + `values-es`.
+    applies immediately. Settings → Notification "Show status-bar icon"; strings in all locales.
 - Round 15 (v1.0.0 release prep + full localization):
   - Version bumped to `1.0.0`; `CHANGELOG.md` trimmed to a single first-release entry (no semver/Keep-a-
     Changelog preamble). `AboutScreen.PROJECT_URL` + changelog link point at

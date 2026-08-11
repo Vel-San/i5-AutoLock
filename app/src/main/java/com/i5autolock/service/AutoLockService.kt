@@ -203,7 +203,7 @@ class AutoLockService : Service() {
     }
 
     private fun startForegroundCompat(state: DetectionState, grace: Int, summary: String? = null) {
-        val notification = AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId())
+        val notification = AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId(), smallIcon())
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         } else 0
@@ -212,15 +212,20 @@ class AutoLockService : Service() {
 
     private fun startForegroundWatch() {
         val summary = if (showStatus) lastSummary else null
-        val notification = AutoLockNotification.buildWatching(this, statusSummary = summary, pinned = pinNotification, channelId = channelId())
+        val notification = AutoLockNotification.buildWatching(this, statusSummary = summary, pinned = pinNotification, channelId = channelId(), smallIcon = smallIcon())
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         } else 0
         ServiceCompat.startForeground(this, AutoLockNotification.NOTIFICATION_ID, notification, type)
     }
-    // Hiding the status-bar icon = post on the minimal-importance channel (still shown in the shade).
+    // Hiding the status-bar icon: post on the minimal channel AND use a transparent small icon.
+    // The channel alone isn't reliable for foreground services on modern Android — the OS keeps the
+    // FGS icon in the status bar — so the transparent icon (rendered as an empty alpha mask) is what
+    // actually removes it.
     private fun channelId(): String =
         if (showNotificationIcon) com.i5autolock.AutoLockApp.CHANNEL_ID else com.i5autolock.AutoLockApp.CHANNEL_ID_MINIMAL
+    private fun smallIcon(): Int =
+        if (showNotificationIcon) com.i5autolock.R.drawable.ic_stat_autolock else com.i5autolock.R.drawable.ic_stat_blank
     private fun updateNotification(state: DetectionState, grace: Int, summary: String?) {
         when {
             // Resting state while watching → the persistent "watching" notification.
@@ -231,7 +236,7 @@ class AutoLockService : Service() {
                 if (!canPostNotifications()) return
                 try {
                     NotificationManagerCompat.from(this)
-                        .notify(AutoLockNotification.NOTIFICATION_ID, AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId()))
+                        .notify(AutoLockNotification.NOTIFICATION_ID, AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId(), smallIcon()))
                 } catch (_: SecurityException) {
                     // Notifications permission revoked between check and post — ignore.
                 }
