@@ -47,12 +47,23 @@ class LoginViewModel @Inject constructor(
 
     suspend fun authorizeUrl(): String = EuAuth.buildAuthorizeUrl(regionConfig())
 
-    suspend fun redirectPrefix(): String = regionConfig().redirectUri
+    suspend fun redirectPrefix(): String {
+        val c = regionConfig()
+        return c.idpRedirectUri ?: c.redirectUri
+    }
 
     fun setEmailHint(email: String) { emailHint = email }
 
+    /** Prepare the visible WebView login: remember the email and store the PIN for locking. */
+    fun prepareWebLogin(email: String, pin: String) {
+        emailHint = email.trim()
+        if (pin.isNotBlank()) viewModelScope.launch { secureStore.savePin(pin.trim()) }
+    }
+
     /** Called by the WebView when it intercepts the redirect containing the code. */
     fun onRedirectCaptured(redirectUrl: String) {
+        // The redirect can fire from several WebView callbacks — only act on the first.
+        if (_state.value is LoginState.InProgress || _state.value is LoginState.Success) return
         val code = EuAuth.extractAuthCode(redirectUrl)
         if (code == null) {
             _state.value = LoginState.Error("No authorization code found in redirect.")

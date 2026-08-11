@@ -193,3 +193,12 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   follow through the connector) -> intercept `redirect_uri` code -> same-origin `fetch(token)`.
   `EuBlueLinkClient` uses `EuWebLogin` first (needs `@ApplicationContext`), falling back to the raw
   `EuIdpAuth` OkHttp path only if the WebView is unavailable. Still fully automatic — no user typing.
+- EU login, the working approach — visible autofill WebView + IDP-direct OAuth: after research
+  against TMA84's `bluelink-refresh-token` (the working reference), the OAuth flow does NOT go through
+  CCSP — it hits the **IDP directly** for BOTH authorize and token exchange. `EuAuth.buildAuthorizeUrl`
+  now returns `https://idpconnect-eu.hyundai.com/auth/api/v2/user/oauth2/authorize?...&country=de` and
+  the WebView intercepts the `RegionConfig.idpRedirectUri` (`prd.eu-ccapi.hyundai.com:8080/api/v1/user/oauth2/token`)
+  as the callback. `EuBlueLinkClient.login()` now POSTs the code to the IDP token endpoint (with
+  `client_id`+`client_secret`), not the CCSP `/api/v1/user/oauth2/token`. Cookies wiped before every
+  load; primary Sign in button drives it end-to-end with autofill; a Cancel + log strip stays visible
+  above the WebView so the user can always see progress.

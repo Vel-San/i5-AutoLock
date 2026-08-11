@@ -136,7 +136,8 @@ class EuWebLogin(private val appContext: Context) {
                     return true
                 }
                 if (url.contains("/error")) {
-                    diag("3/4 ↳ ${sanitize(url, redirect)}")
+                    val stepLabel = if (phase == Phase.AUTHORIZE) "1/4 authorize" else "3/4 signin"
+                    diag("$stepLabel ↳ ${sanitize(url, redirect)}")
                     val desc = EuAuth.queryParam(url, "error_description")
                         ?: EuAuth.queryParam(url, "error") ?: "Bad Request"
                     fail("Sign-in rejected: $desc")
@@ -196,8 +197,17 @@ class EuWebLogin(private val appContext: Context) {
 
             cont.invokeOnCancellation { main.post { finish {} } }
 
-            diag("Login (web): opening IDP…")
-            web.loadUrl(authorizeUrl)
+            // Start every login from a clean Akamai session. A stale/flagged `_abck` cookie from a
+            // previous failed attempt makes Akamai return "abusing request" even on a valid authorize —
+            // this is exactly why the desktop refresh-token tool (fresh process, no cookies) works.
+            val cm = CookieManager.getInstance()
+            cm.removeAllCookies {
+                if (settled) return@removeAllCookies
+                cm.flush()
+                runCatching { web.clearCache(true); web.clearHistory() }
+                diag("Login (web): opening IDP…")
+                web.loadUrl(authorizeUrl)
+            }
         }
     }
 

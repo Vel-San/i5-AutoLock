@@ -124,28 +124,38 @@ class EuBlueLinkClient(
 
     override suspend fun login(username: String, authCodeOrPassword: String): CommandResult {
         return try {
-            val response: HttpResponse = http.post("${config.apiBaseUrl}/api/v1/user/oauth2/token") {
-                baseHeaders(this)
-                config.basicAuth?.let { header("Authorization", it) }
+            diag("Login: exchanging code for tokens…")
+            ensureDeviceRegistered()
+            // Talk to the IDP directly, matching bluelink-refresh-token. The CCSP token
+            // endpoint used to work as a stand-in but 401s on modern accounts.
+            val idp = config.idpBaseUrl ?: config.apiBaseUrl
+            val redirect = config.idpRedirectUri ?: config.redirectUri
+            val response: HttpResponse = http.post("$idp/auth/api/v2/user/oauth2/token") {
+                header("User-Agent", config.mobileUserAgent)
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody(
                     FormDataContent(
                         parameters {
                             append("grant_type", "authorization_code")
                             append("code", authCodeOrPassword)
-                            append("redirect_uri", config.redirectUri)
+                            append("redirect_uri", redirect)
                             append("client_id", config.clientId)
+                            config.clientSecret?.let { append("client_secret", it) }
                         },
                     ),
                 )
             }
-            if (!response.ok()) return CommandResult.Failure("Token exchange failed: ${response.status}")
+            if (!response.ok()) {
+                val body = runCatching { response.body<String>() }.getOrDefault("").take(200)
+                return fail("Token exchange failed (HTTP ${response.status.value}). $body")
+            }
             val token: TokenResponse = response.body()
             persist(token, username)
+            diag("Login complete ✓")
             CommandResult.Success("Signed in")
         } catch (t: Throwable) {
             Log.w(TAG, "login failed: ${t.message}")
-            CommandResult.Failure("Login error", t)
+            fail("Login error: ${t.message}")
         }
     }
 

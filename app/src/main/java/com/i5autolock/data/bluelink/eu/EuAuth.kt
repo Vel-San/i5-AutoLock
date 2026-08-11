@@ -26,17 +26,21 @@ object EuAuth {
     }
 
     /**
-     * URL for the in-app Custom Tab / WebView. After the user signs in, the backend
-     * redirects to [RegionConfig.redirectUri] with a `?code=...` query param, which we intercept.
+     * IDP authorize URL used inside the WebView. Mirrors `bluelink-refresh-token`:
+     * hits `idpconnect-eu.hyundai.com/auth/api/v2/user/oauth2/authorize` directly (not CCSP)
+     * and uses [RegionConfig.idpRedirectUri] as the callback we intercept.
      */
     fun buildAuthorizeUrl(config: RegionConfig): String {
-        val base = "${config.apiBaseUrl}/api/v1/user/oauth2/authorize"
+        val idp = config.idpBaseUrl ?: config.apiBaseUrl
+        val redirect = config.idpRedirectUri ?: config.redirectUri
+        val base = "$idp/auth/api/v2/user/oauth2/authorize"
         val params = listOf(
             "response_type" to "code",
             "client_id" to config.clientId,
-            "redirect_uri" to config.redirectUri,
-            "lang" to "en",
+            "redirect_uri" to redirect,
+            "lang" to "de",
             "state" to "ccsp",
+            "country" to "de",
         ).joinToString("&") { (k, v) -> "$k=${urlEncode(v)}" }
         return "$base?$params"
     }

@@ -94,6 +94,8 @@ fun LoginScreen(
     var refreshToken by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf("") }
+    var webAutofillEmail by remember { mutableStateOf("") }
+    var webAutofillPassword by remember { mutableStateOf<String?>(null) }
 
     // Block screenshots / recents thumbnail while credentials are on screen.
     DisposableEffect(Unit) {
@@ -150,8 +152,9 @@ fun LoginScreen(
                         cells = 20,
                     )
                     Text(
-                        "Sign in with your Hyundai BlueLink email and password. AutoLock generates " +
-                            "the access token automatically, on your device — nothing is shared elsewhere.",
+                        "Sign in with your Hyundai BlueLink email and password. AutoLock opens " +
+                            "Hyundai's real login page, signs in for you, and captures the token " +
+                            "on your device — nothing is shared elsewhere.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     OutlinedTextField(
@@ -186,7 +189,15 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Button(
-                        onClick = { viewModel.onPasswordSubmitted(email, password, pin) },
+                        onClick = {
+                            scope.launch {
+                                viewModel.prepareWebLogin(email, pin)
+                                webAutofillEmail = email.trim()
+                                webAutofillPassword = password
+                                redirectPrefix = viewModel.redirectPrefix()
+                                authorizeUrl = viewModel.authorizeUrl()
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = email.isNotBlank() && password.isNotBlank(),
                     ) { Text("Sign in") }
@@ -246,11 +257,12 @@ fun LoginScreen(
 
                     HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
-                    // Alternative: in-app WebView.
+                    // Alternative: in-app WebView, sign in manually (no autofill).
                     OutlinedButton(
                         onClick = {
                             scope.launch {
                                 viewModel.setEmailHint(email)
+                                webAutofillPassword = null
                                 redirectPrefix = viewModel.redirectPrefix()
                                 authorizeUrl = viewModel.authorizeUrl()
                             }
@@ -301,17 +313,46 @@ fun LoginScreen(
                     }
                 }
             } else {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            // Cookies are REQUIRED for the OAuth session; without them Hyundai
-                            // returns "Session Timedout : 401" immediately.
-                            CookieManager.getInstance().setAcceptCookie(true)
-                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                            with(settings) {
-                                javaScriptEnabled = true
-                                domStorageEnabled = true
+                val autofillEmail = webAutofillEmail
+                val autofillPass = webAutofillPassword
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = {
+                            authorizeUrl = null
+                            webAutofillPassword = null
+                            CookieManager.getInstance().removeAllCookies(null)
+                            CookieManager.getInstance().flush()
+                        }) { Text("Cancel") }
+                        Text(
+                            (log.firstOrNull()?.message ?: "Loading Hyundai login…").take(60),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    AndroidView(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                // Fresh Akamai session every time — a stale/flagged cookie from a prior
+                                // attempt makes Hyundai reject even a valid login as an "abusing request".
+                                CookieManager.getInstance().removeAllCookies(null)
+                                CookieManager.getInstance().flush()
+                                // Cookies are REQUIRED for the OAuth session; without them Hyundai
+                                // returns "Session Timedout : 401" immediately.
+                                CookieManager.getInstance().setAcceptCookie(true)
+                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                with(settings) {
+                                    javaScriptEnabled = true
+                                    domStorageEnabled = true
                                 databaseEnabled = true
                                 // Present as a normal mobile browser; Hyundai's login rejects the
                                 // default WebView user-agent (the "; wv" token) with a 401.
@@ -334,15 +375,39 @@ fun LoginScreen(
                                 ): Boolean {
                                     val url = request?.url?.toString() ?: return false
                                     return if (url.startsWith(redirectPrefix)) {
+                                        view?.stopLoading()
                                         viewModel.onRedirectCaptured(url)
                                         true
                                     } else false
+                                }
+
+                                override fun onPageStarted(
+                                    view: WebView?,
+                                    url: String?,
+                                    favicon: android.graphics.Bitmap?,
+                                ) {
+                                    // Server-side 302s don't always hit shouldOverrideUrlLoading.
+                                    if (url != null && url.startsWith(redirectPrefix)) {
+                                        view?.stopLoading()
+                                        viewModel.onRedirectCaptured(url)
+                                    }
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    if (url == null || url.startsWith(redirectPrefix)) return
+                                    // Autofill and submit Hyundai's real login form for the user.
+                                    if (autofillPass != null) {
+                                        view?.evaluateJavascript(
+                                            autofillJs(autofillEmail, autofillPass), null,
+                                        )
+                                    }
                                 }
                             }
                             loadUrl(authorizeUrl!!)
                         }
                     },
                 )
+                }
             }
         }
     }
@@ -358,3 +423,33 @@ private fun openInBrowser(context: Context, url: String) {
     }
     runCatching { context.startActivity(chooser) }
 }
+
+/**
+ * JS that fills Hyundai's real login form (email + password) and submits it. Handles both
+ * single-page and two-step (email → password) layouts, and dispatches input/change events so
+ * the page's own framework registers the values. Injected on each non-redirect page load.
+ */
+private fun autofillJs(email: String, password: String): String {
+    fun esc(s: String) = s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "").replace("\r", "")
+    val js = """
+        (function(){try{
+          var EM='__E__',PW='__P__';
+          function setVal(el,v){try{var d=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el),'value');if(d&&d.set){d.set.call(el,v);}else{el.value=v;}}catch(x){el.value=v;}
+            el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('blur',{bubbles:true}));}
+          function vis(el){return !!el&&el.offsetParent!==null&&!el.disabled;}
+          function q(s){for(var i=0;i<s.length;i++){var el=document.querySelector(s[i]);if(vis(el))return el;}return null;}
+          var em=q(['input[type=email]','input[autocomplete=username]','input[name*=email i]','input[name=username]','input[id*=email i]','input[id*=user i]']);
+          var pw=q(['input[type=password]','input[autocomplete=current-password]','input[name*=password i]','input[id*=password i]']);
+          if(em&&EM&&!em.value)setVal(em,EM);
+          if(pw&&PW)setVal(pw,PW);
+          function submit(){var b=q(['button[type=submit]','input[type=submit]']);
+            if(!b){var bs=document.querySelectorAll('button,a.btn,input[type=button],a[role=button]');
+              for(var i=0;i<bs.length;i++){var t=((bs[i].innerText||bs[i].value||'')+'').toLowerCase();
+                if(/sign ?in|log ?in|einloggen|anmelden|weiter|next|continue|submit|confirm/.test(t)&&vis(bs[i])){b=bs[i];break;}}}
+            if(b)b.click();}
+          if(pw&&PW){setTimeout(submit,500);}else if(em&&EM){setTimeout(submit,500);}
+        }catch(err){}})();
+    """.trimIndent().replace("\n", " ")
+    return "javascript:" + js.replace("__E__", esc(email)).replace("__P__", esc(password))
+}
+
