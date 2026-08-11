@@ -13,6 +13,9 @@ enum class RunMode {
 /** Preferred app theme. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** A vehicle previously loaded from the account, cached so the picker survives app restarts. */
+data class KnownVehicle(val id: String, val nickname: String, val model: String)
+
 /** Pieces of vehicle info the user can show/hide in the ongoing notification. */
 enum class NotificationField(val label: String) {
     LOCK_STATE("Lock state"),
@@ -55,6 +58,8 @@ data class AppSettings(
 
     // Last place the car was parked (label only), for the status card.
     val parkedLabel: String? = null,
+    val parkedLat: Double? = null,
+    val parkedLng: Double? = null,
 
     /** When true, uses the in-memory fake client so the app can be tested without a car/account. */
     val demoMode: Boolean = false,
@@ -73,6 +78,9 @@ data class AppSettings(
     // Selected vehicle.
     val vehicleId: String? = null,
     val vehicleNickname: String? = null,
+
+    // Vehicles loaded from the account (cached so the Settings picker persists offline).
+    val knownVehicles: List<KnownVehicle> = emptyList(),
 
     // Account (non-secret parts only; tokens live in SecureStore).
     val accountEmail: String? = null,

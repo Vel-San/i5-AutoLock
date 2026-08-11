@@ -4,16 +4,19 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,10 +32,12 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +47,8 @@ import com.i5autolock.data.bluelink.Region
 import com.i5autolock.data.settings.NotificationField
 import com.i5autolock.data.settings.RunMode
 import com.i5autolock.data.settings.ThemeMode
+import com.i5autolock.ui.components.HeroBanner
+import com.i5autolock.ui.theme.ambientBackground
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,9 +64,12 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     Scaffold(
+        modifier = Modifier.fillMaxSize().background(ambientBackground()),
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -75,6 +85,13 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            HeroBanner(
+                title = "Settings",
+                subtitle = "Tune how AutoLock detects you leaving and how it locks your car.",
+                icon = Icons.Default.Tune,
+                eyebrow = "Configure",
+            )
+
             // Safety / run mode.
             Section("Safety") {
                 RowToggle(

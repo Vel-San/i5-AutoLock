@@ -202,3 +202,60 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   `client_id`+`client_secret`), not the CCSP `/api/v1/user/oauth2/token`. Cookies wiped before every
   load; primary Sign in button drives it end-to-end with autofill; a Cancel + log strip stays visible
   above the WebView so the user can always see progress.
+- UI makeover ("Electric Performance" design language): overhauled the design system in `ui/theme`.
+  Richer Ioniq-5 palette (`Color.kt`: brighter Digital Teal, new Electric Lime charge accent, layered
+  Phantom Black surfaces + Atlas White) wired into full M3 `surfaceContainer*` tokens in `Theme.kt`.
+  New type system — heavy grotesk-style SansSerif display/headings with tight tracking, **Monospace**
+  labels/data for an "EV instrument cluster" readout feel. Softer, larger shapes (18–32dp). `Brand.kt`
+  gained multi-stop `brandGradient`, `heroGlow`, `ambientBackground`, `BrandTokens` and richer
+  `AccentColors`. `PixelDecor.kt` now draws rounded pixels + a new animated `ScanningPixelBand`.
+  Redesigned adaptive launcher icon (deeper radial-glow background, premium padlock with a parametric-
+  pixel keyhole, matching monochrome). Home screen rebuilt: ambient background wash, brand wordmark +
+  pixel logo, layered hero status card (glow + scanning band when watching), vehicle card with animated
+  battery bar + tinted stat chips, taller pill action buttons, timeline-style activity log. Settings/
+  Stats/Help got the ambient background + transparent app bars for a cohesive look. Widget bg tuned to
+  the new gradient. No behaviour changes; tests/lint/assembleDebug green.
+- UI + fixes round 2: reusable gradient `HeroBanner` (`ui/components/Hero.kt`) — brand gradient + glow +
+  parametric-pixel accent — now headers Settings and Help. The Home "Vehicle" card is a state-driven
+  gradient hero (teal=locked / red=unlocked / slate=unknown) with white content, glow, animated battery
+  bar and translucent stat chips. Launcher icon symmetry fixed (lock body was centred at x=52 vs the
+  shackle/shadow/keyhole at x=54 → now all centred at 54). Notifications/haptics/sound now fire on
+  "Simulate leaving": `HomeViewModel.runNow` starts `AutoLockService` (foreground) instead of calling the
+  controller directly, so the live notification + lock confirmation feedback run exactly like a real BT
+  trigger. Crash hardening: `AutoLockController.runEvaluation` is wrapped in try/catch (rethrows
+  `CancellationException`) so any error becomes a logged ERROR instead of an uncaught crash in the
+  controller's coroutine. Vehicle-list persistence: loaded vehicles are cached in DataStore
+  (`AppSettings.knownVehicles` / `KnownVehicle`, `SettingsRepository` KNOWN_VEHICLES key); the Settings
+  picker seeds from the cache instantly on open (survives restarts/nav), refreshes in the background, and
+  keeps the cache on transient load failures; sign-out clears it.
+- Meaningful pixel bar: the hero card's pixel band is now state-driven instead of always animating —
+  `ScanningPixelBand` only while an evaluation is in flight (ARMED/CONFIRMING/GRACE/VERIFYING/LOCKING),
+  a solid full `PixelBand(dim=false)` once LOCKED/SKIPPED ("secured"), and a dim static bar when armed
+  and simply waiting. The status dot pulses only while active and is a solid dot otherwise. Added a
+  `dim` flag to `PixelBand`.
+- Persistent watching + fixes round 3:
+  - Locked-notification bug: the status line was built from the pre-lock status (still "Unlocked").
+    `AutoLockController.performLock` now takes the `status`, and on a real lock success rebuilds the
+    summary + `StatusCache` from `status.copy(lockState = LOCKED, anyDoorOpen = false)` so the "Locked"
+    notification and widget read "Locked".
+  - Persistent background watching: `AutoLockService` gained a watch mode (`ACTION_START_WATCH` /
+    `ACTION_STOP_WATCH`, `AutoLockNotification.buildWatching` — ongoing LOW-priority "AutoLock is
+    watching" notification with a "Turn off" action). It stays foreground (START_STICKY) while enabled,
+    runs one-off evaluations on trigger, and reverts to the watching notification afterwards instead of
+    stopping. Wired to the enable toggle (`HomeViewModel.setEnabled`, tile `onClick`), resumed on boot
+    (`BootReceiver`), and re-ensured on Home open. `AutoLockService.start*` are wrapped in try/catch to
+    survive OS background-start restrictions.
+  - Parked location → Google Maps: `LocationHelper.currentParkedPlace()` now returns coords + label
+    (`ParkedPlace`); `AppSettings.parkedLat/parkedLng` persisted; the Home vehicle card's "Parked near …"
+    row is tappable (`openParkedInMaps` → geo: intent preferring Google Maps, falling back to a web
+    maps URL).
+- Sparkle eye-candy: new `SparklingPixels` (theme/PixelDecor) twinkles each parametric-pixel cell
+  independently (per-cell sine phase) with a soft bloom behind bright cells. The System Status corner
+  pixels sparkle while watching is enabled; the Vehicle card pixels sparkle while the car is locked;
+  both fall back to a calm static cluster otherwise (`active=false`).
+- Watch service resilience: (1) a null-intent `onStartCommand` (system `START_STICKY` recreation after a
+  kill) now resumes watch mode if `enabled` instead of firing a bogus evaluation; (2) `onTaskRemoved`
+  re-asserts the foreground notification when the app is swiped from Recents; (3) the watching
+  notification carries a `deleteIntent` (`getForegroundService` → `ACTION_START_WATCH`) so if the user
+  swipes it away it immediately re-posts — watching stays visible/persistent while enabled. OEM battery
+  optimisation can still kill it, hence the existing "Keep AutoLock running" settings shortcuts.

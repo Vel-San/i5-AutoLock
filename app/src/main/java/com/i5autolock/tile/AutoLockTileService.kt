@@ -4,6 +4,7 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.i5autolock.data.settings.SettingsRepository
+import com.i5autolock.service.AutoLockService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,8 @@ class AutoLockTileService : TileService() {
         scope.launch {
             val enabled = !settingsRepo.settings.first().enabled
             settingsRepo.update { it.copy(enabled = enabled) }
+            if (enabled) AutoLockService.startWatching(applicationContext)
+            else AutoLockService.stopWatching(applicationContext)
             render(enabled)
         }
     }

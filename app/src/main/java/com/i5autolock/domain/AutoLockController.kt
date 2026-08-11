@@ -86,6 +86,7 @@ class AutoLockController @Inject constructor(
     fun runNow() = onTriggerFired()
 
     private suspend fun runEvaluation() = mutex.withLock {
+        try {
         skipGrace = false
         val settings = settingsRepo.settings.first()
         if (settings.vehicleId == null) {
@@ -103,9 +104,9 @@ class AutoLockController @Inject constructor(
         }
         // Optionally remember where the car parked.
         if (settings.rememberParkedLocation) {
-            locationHelper.currentPlaceLabel()?.let { label ->
-                settingsRepo.update { it.copy(parkedLabel = label) }
-                log.add(LogLevel.INFO, "Parked near $label.")
+            locationHelper.currentParkedPlace()?.let { place ->
+                settingsRepo.update { it.copy(parkedLabel = place.label, parkedLat = place.lat, parkedLng = place.lng) }
+                place.label?.let { log.add(LogLevel.INFO, "Parked near $it.") }
             }
         }
         val sm = LockStateMachine(settings).also { machine = it }
@@ -159,13 +160,20 @@ class AutoLockController @Inject constructor(
                 _state.value = _state.value.copy(detection = DetectionState.SKIPPED, graceRemaining = 0)
                 log.add(LogLevel.INFO, "Skipped: ${decision.reason}.")
             }
-            LockDecision.Lock -> performLock(settings, client)
+            LockDecision.Lock -> performLock(settings, client, status)
+        }
+        } catch (c: kotlinx.coroutines.CancellationException) {
+            throw c
+        } catch (t: Throwable) {
+            android.util.Log.w("AutoLockController", "evaluation failed", t)
+            fail("AutoLock hit an error: ${t.message ?: t.javaClass.simpleName}")
         }
     }
 
     private suspend fun performLock(
         settings: com.i5autolock.data.settings.AppSettings,
         client: com.i5autolock.data.bluelink.BlueLinkClient,
+        status: com.i5autolock.data.bluelink.model.VehicleStatus,
     ) {
         _state.value = _state.value.copy(detection = DetectionState.LOCKING)
         if (settings.runMode == RunMode.DRY_RUN) {
@@ -179,10 +187,21 @@ class AutoLockController @Inject constructor(
         when (val result = client.lock(settings.vehicleId!!)) {
             is CommandResult.Success -> {
                 log.add(LogLevel.SUCCESS, "Car locked automatically.")
+                // Reflect the new locked state in the notification summary + widget cache,
+                // otherwise the "Locked" notification would still show the pre-lock "Unlocked".
+                val locked = status.copy(
+                    lockState = com.i5autolock.data.bluelink.model.LockState.LOCKED,
+                    anyDoorOpen = false,
+                )
+                val summary = if (settings.showStatusInNotification) {
+                    StatusSummary.build(locked, settings.notificationFields).ifBlank { null }
+                } else null
                 _state.value = _state.value.copy(
                     detection = DetectionState.LOCKED,
                     lastLockAtEpochMs = System.currentTimeMillis(),
+                    statusSummary = summary,
                 )
+                statusCache.save("LOCKED", StatusSummary.build(locked, settings.notificationFields))
             }
             CommandResult.RateLimited -> fail("Locking is temporarily rate-limited. Try again shortly.")
             CommandResult.NotAuthenticated -> fail("Not signed in — please log in again.")

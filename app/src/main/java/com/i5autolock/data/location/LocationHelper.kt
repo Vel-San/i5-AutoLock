@@ -15,6 +15,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 
+/** A remembered parked position: coordinates + an optional human-friendly label. */
+data class ParkedPlace(val lat: Double, val lng: Double, val label: String?)
+
 /** Best-effort current location + a short human label, used to remember where the car parked. */
 @Singleton
 class LocationHelper @Inject constructor(
@@ -29,7 +32,10 @@ class LocationHelper @Inject constructor(
             PackageManager.PERMISSION_GRANTED
 
     /** Returns a short place label (e.g. "Market St") or null if unavailable. */
-    suspend fun currentPlaceLabel(): String? {
+    suspend fun currentPlaceLabel(): String? = currentParkedPlace()?.label
+
+    /** Returns the current coordinates + a short place label, or null if unavailable. */
+    suspend fun currentParkedPlace(): ParkedPlace? {
         if (!hasPermission()) return null
         val location = try {
             suspendCancellableCoroutine<android.location.Location?> { cont ->
@@ -41,7 +47,11 @@ class LocationHelper @Inject constructor(
             null
         } ?: return null
 
-        return reverseGeocode(location.latitude, location.longitude)
+        return ParkedPlace(
+            lat = location.latitude,
+            lng = location.longitude,
+            label = reverseGeocode(location.latitude, location.longitude),
+        )
     }
 
     private suspend fun reverseGeocode(lat: Double, lng: Double): String? {

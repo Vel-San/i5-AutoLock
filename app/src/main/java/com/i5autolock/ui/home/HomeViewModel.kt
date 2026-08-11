@@ -12,13 +12,16 @@ import com.i5autolock.domain.AutoLockController
 import com.i5autolock.domain.AutoLockUiState
 import com.i5autolock.domain.LogEntry
 import com.i5autolock.domain.StatusSummary
+import com.i5autolock.service.AutoLockService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import android.content.Context
 import javax.inject.Inject
 
 /** UI state for the live vehicle status card. */
@@ -31,6 +34,7 @@ data class VehicleStatusUi(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val settingsRepo: SettingsRepository,
     private val controller: AutoLockController,
     private val provider: BlueLinkProvider,
@@ -51,13 +55,22 @@ class HomeViewModel @Inject constructor(
     init {
         // Pull a cached status snapshot on open (no forced remote refresh).
         refreshStatus(force = false)
+        // If watching is already enabled, make sure the background service is running.
+        viewModelScope.launch {
+            if (settingsRepo.settings.first().enabled) AutoLockService.startWatching(appContext)
+        }
     }
 
     fun setEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsRepo.update { it.copy(enabled = enabled) }
+        if (enabled) AutoLockService.startWatching(appContext) else AutoLockService.stopWatching(appContext)
     }
 
-    fun runNow() = controller.runNow()
+    fun runNow() {
+        // Drive the whole flow through the foreground service so the user gets the live
+        // notification plus haptic/sound feedback, exactly like a real Bluetooth trigger.
+        AutoLockService.start(appContext)
+    }
 
     fun cancel() = controller.cancel()
 

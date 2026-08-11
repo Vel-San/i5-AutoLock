@@ -8,6 +8,7 @@ import com.i5autolock.data.bluelink.model.Vehicle
 import com.i5autolock.data.device.BluetoothDevices
 import com.i5autolock.data.device.PairedDevice
 import com.i5autolock.data.settings.AppSettings
+import com.i5autolock.data.settings.KnownVehicle
 import com.i5autolock.data.settings.NotificationField
 import com.i5autolock.data.settings.RunMode
 import com.i5autolock.data.settings.SettingsRepository
@@ -48,6 +49,10 @@ class SettingsViewModel @Inject constructor(
         refreshDevices()
         viewModelScope.launch {
             val s = settingsRepo.settings.first()
+            // Show the cached vehicle list instantly so the picker survives restarts/navigation.
+            if (s.knownVehicles.isNotEmpty()) {
+                _extras.value = _extras.value.copy(vehicles = s.knownVehicles.map { it.toVehicle() })
+            }
             val client = provider.client(s)
             val signedIn = client.isAuthenticated()
             _extras.value = _extras.value.copy(signedIn = signedIn)
@@ -100,19 +105,26 @@ class SettingsViewModel @Inject constructor(
         _extras.value = _extras.value.copy(loadingVehicles = true)
         val s = settingsRepo.settings.first()
         val result = runCatching { provider.client(s).vehicles() }
-        _extras.value = _extras.value.copy(
-            loadingVehicles = false,
-            vehicles = result.getOrElse {
-                log.add(LogLevel.ERROR, "Couldn't load vehicles: ${it.message}")
-                emptyList()
-            },
-        )
+        val loaded = result.getOrElse {
+            log.add(LogLevel.ERROR, "Couldn't load vehicles: ${it.message}")
+            // Keep whatever we already have (cache) rather than blanking the picker.
+            emptyList()
+        }
+        if (loaded.isNotEmpty()) {
+            // Cache the list so it persists across restarts and offline sessions.
+            settingsRepo.update { st ->
+                st.copy(knownVehicles = loaded.map { KnownVehicle(it.id, it.nickname, it.model) })
+            }
+            _extras.value = _extras.value.copy(loadingVehicles = false, vehicles = loaded)
+        } else {
+            _extras.value = _extras.value.copy(loadingVehicles = false)
+        }
     }
 
     fun signOut() = viewModelScope.launch {
         val s = settingsRepo.settings.first()
         provider.client(s).clearSession()
-        settingsRepo.update { it.copy(accountEmail = null, vehicleId = null, vehicleNickname = null) }
+        settingsRepo.update { it.copy(accountEmail = null, vehicleId = null, vehicleNickname = null, knownVehicles = emptyList()) }
         _extras.value = _extras.value.copy(signedIn = false, vehicles = emptyList())
         log.add(LogLevel.INFO, "Signed out.")
     }
@@ -123,3 +135,6 @@ class SettingsViewModel @Inject constructor(
         loadVehicles()
     }
 }
+
+private fun KnownVehicle.toVehicle(): Vehicle =
+    Vehicle(id = id, vin = "", nickname = nickname, model = model)

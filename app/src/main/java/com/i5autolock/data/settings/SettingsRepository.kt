@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -41,6 +42,8 @@ class SettingsRepository @Inject constructor(
         val SCHEDULE_START = intPreferencesKey("schedule_start")
         val SCHEDULE_END = intPreferencesKey("schedule_end")
         val PARKED_LABEL = stringPreferencesKey("parked_label")
+        val PARKED_LAT = doublePreferencesKey("parked_lat")
+        val PARKED_LNG = doublePreferencesKey("parked_lng")
         val GRACE = intPreferencesKey("grace_seconds")
         val USE_BT = booleanPreferencesKey("use_bt")
         val USE_AR = booleanPreferencesKey("use_ar")
@@ -50,6 +53,7 @@ class SettingsRepository @Inject constructor(
         val CAR_BT_NAME = stringPreferencesKey("car_bt_name")
         val VEHICLE_ID = stringPreferencesKey("vehicle_id")
         val VEHICLE_NICK = stringPreferencesKey("vehicle_nick")
+        val KNOWN_VEHICLES = stringSetPreferencesKey("known_vehicles")
         val ACCOUNT_EMAIL = stringPreferencesKey("account_email")
         val REQUIRE_CONFIRM = booleanPreferencesKey("require_confirm")
     }
@@ -77,6 +81,8 @@ class SettingsRepository @Inject constructor(
         scheduleStartMinutes = this[Keys.SCHEDULE_START] ?: (7 * 60),
         scheduleEndMinutes = this[Keys.SCHEDULE_END] ?: (22 * 60),
         parkedLabel = this[Keys.PARKED_LABEL],
+        parkedLat = this[Keys.PARKED_LAT],
+        parkedLng = this[Keys.PARKED_LNG],
         graceSeconds = this[Keys.GRACE] ?: 45,
         useBluetoothTrigger = this[Keys.USE_BT] ?: true,
         useActivityRecognition = this[Keys.USE_AR] ?: true,
@@ -86,6 +92,11 @@ class SettingsRepository @Inject constructor(
         carBluetoothName = this[Keys.CAR_BT_NAME],
         vehicleId = this[Keys.VEHICLE_ID],
         vehicleNickname = this[Keys.VEHICLE_NICK],
+        knownVehicles = this[Keys.KNOWN_VEHICLES]
+            ?.mapNotNull { entry ->
+                entry.split('\u001F').takeIf { it.size >= 3 }?.let { KnownVehicle(it[0], it[1], it[2]) }
+            }
+            ?: emptyList(),
         accountEmail = this[Keys.ACCOUNT_EMAIL],
         requireConfirmationBeforeLock = this[Keys.REQUIRE_CONFIRM] ?: false,
     )
@@ -110,6 +121,8 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.SCHEDULE_START] = next.scheduleStartMinutes
             prefs[Keys.SCHEDULE_END] = next.scheduleEndMinutes
             next.parkedLabel?.let { prefs[Keys.PARKED_LABEL] = it } ?: prefs.remove(Keys.PARKED_LABEL)
+            next.parkedLat?.let { prefs[Keys.PARKED_LAT] = it } ?: prefs.remove(Keys.PARKED_LAT)
+            next.parkedLng?.let { prefs[Keys.PARKED_LNG] = it } ?: prefs.remove(Keys.PARKED_LNG)
             prefs[Keys.GRACE] = next.graceSeconds
             prefs[Keys.USE_BT] = next.useBluetoothTrigger
             prefs[Keys.USE_AR] = next.useActivityRecognition
@@ -119,6 +132,9 @@ class SettingsRepository @Inject constructor(
             next.carBluetoothName?.let { prefs[Keys.CAR_BT_NAME] = it } ?: prefs.remove(Keys.CAR_BT_NAME)
             next.vehicleId?.let { prefs[Keys.VEHICLE_ID] = it } ?: prefs.remove(Keys.VEHICLE_ID)
             next.vehicleNickname?.let { prefs[Keys.VEHICLE_NICK] = it } ?: prefs.remove(Keys.VEHICLE_NICK)
+            prefs[Keys.KNOWN_VEHICLES] = next.knownVehicles
+                .map { "${it.id}\u001F${it.nickname}\u001F${it.model}" }
+                .toSet()
             next.accountEmail?.let { prefs[Keys.ACCOUNT_EMAIL] = it } ?: prefs.remove(Keys.ACCOUNT_EMAIL)
             prefs[Keys.REQUIRE_CONFIRM] = next.requireConfirmationBeforeLock
         }

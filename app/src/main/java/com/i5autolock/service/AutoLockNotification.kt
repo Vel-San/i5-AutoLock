@@ -15,6 +15,46 @@ object AutoLockNotification {
 
     const val NOTIFICATION_ID = 4201
 
+    /** Persistent "watching" notification shown whenever AutoLock is enabled. */
+    fun buildWatching(context: Context, statusSummary: String? = null): Notification {
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val stopIntent = PendingIntent.getService(
+            context,
+            5,
+            Intent(context, AutoLockService::class.java).setAction(AutoLockService.ACTION_STOP_WATCH),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        // If the user swipes the notification away, immediately re-assert it: watching must persist.
+        val reviveIntent = PendingIntent.getForegroundService(
+            context,
+            6,
+            Intent(context, AutoLockService::class.java).setAction(AutoLockService.ACTION_START_WATCH),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val text = if (!statusSummary.isNullOrBlank()) {
+            "Monitoring for you leaving the car.\n$statusSummary"
+        } else {
+            "Monitoring for you leaving the car."
+        }
+        return NotificationCompat.Builder(context, AutoLockApp.CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("AutoLock is watching")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(contentIntent)
+            .setDeleteIntent(reviveIntent)
+            .addAction(0, "Turn off", stopIntent)
+            .build()
+    }
+
     fun build(
         context: Context,
         state: DetectionState,

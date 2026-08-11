@@ -6,18 +6,18 @@
     android:viewportHeight="108">
     <!-- Flat silhouette for Android 13+ themed icons; system applies the tint. -->
     <group
-        android:scaleX="1.15"
-        android:scaleY="1.15"
+        android:scaleX="1.08"
+        android:scaleY="1.08"
         android:pivotX="54"
-        android:pivotY="55">
+        android:pivotY="56">
         <path
             android:strokeColor="#FFFFFFFF"
-            android:strokeWidth="6"
+            android:strokeWidth="7"
             android:strokeLineCap="round"
             android:fillColor="#00000000"
-            android:pathData="M42,48 V40 a12,12 0 0 1 24,0 V48" />
+            android:pathData="M41,50 V41 a13,13 0 0 1 26,0 V50" />
         <path
             android:fillColor="#FFFFFFFF"
-            android:pathData="M38,47 h32 a6,6 0 0 1 6,6 v22 a6,6 0 0 1 -6,6 h-32 a6,6 0 0 1 -6,-6 v-22 a6,6 0 0 1 6,-6 z" />
+            android:pathData="M38,50 h32 a7,7 0 0 1 7,7 v22 a7,7 0 0 1 -7,7 h-32 a7,7 0 0 1 -7,-7 v-22 a7,7 0 0 1 7,-7 z" />
     </group>
 </vector>

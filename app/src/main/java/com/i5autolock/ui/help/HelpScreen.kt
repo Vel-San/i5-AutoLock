@@ -1,14 +1,16 @@
 package com.i5autolock.ui.help
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -18,11 +20,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.i5autolock.ui.theme.PixelBand
+import com.i5autolock.ui.components.HeroBanner
+import com.i5autolock.ui.theme.ambientBackground
 
 /**
  * Static help / tutorial page. Explains every setting and how detection works. No ViewModel:
@@ -32,9 +37,12 @@ import com.i5autolock.ui.theme.PixelBand
 @Composable
 fun HelpScreen(onBack: () -> Unit) {
     Scaffold(
+        modifier = Modifier.fillMaxSize().background(ambientBackground()),
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Help & how it works") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -50,23 +58,14 @@ fun HelpScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PixelBand(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        cells = 20,
-                    )
-                    Text(
-                        "AutoLock does one job: it notices when you've left your (unlocked) car " +
-                            "and locks it for you. This page explains every setting so you can tune " +
-                            "it with confidence.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
+            HeroBanner(
+                title = "How it works",
+                subtitle = "AutoLock does one job: it notices when you've left your (unlocked) " +
+                    "car and locks it for you. This page explains every setting so you can tune " +
+                    "it with confidence.",
+                icon = Icons.AutoMirrored.Filled.HelpOutline,
+                eyebrow = "Guide",
+            )
 
             HelpSection(
                 "The lock flow, step by step",

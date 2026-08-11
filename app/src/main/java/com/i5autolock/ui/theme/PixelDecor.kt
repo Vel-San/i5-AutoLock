@@ -1,19 +1,29 @@
 package com.i5autolock.ui.theme
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.sin
 
 /**
- * Ioniq 5 "Parametric Pixels" motif — clusters of small squares echoing the car's pixel
- * head/tail lights. Used as a subtle brand accent across the app.
+ * Ioniq 5 "Parametric Pixels" motif — clusters of small rounded squares echoing the car's pixel
+ * head/tail lights. Used as a subtle, premium brand accent across the app.
  */
 
 // A compact pixel cluster pattern (grid cells that are "lit"), 8 columns x 5 rows.
@@ -27,23 +37,74 @@ private val PixelCluster: List<Pair<Int, Int>> = listOf(
 private const val ClusterCols = 8
 private const val ClusterRows = 5
 
-/** Draws the pixel cluster within [Modifier.size]. Cells scale to fit. */
+/** Draws the pixel cluster within [Modifier.size]. Cells scale to fit and have soft corners. */
 @Composable
 fun ParametricPixels(
     modifier: Modifier = Modifier,
     color: Color = DigitalTeal,
-    gapRatio: Float = 0.25f,
+    gapRatio: Float = 0.28f,
 ) {
     Canvas(modifier) {
         val cellW = size.width / (ClusterCols + (ClusterCols - 1) * gapRatio)
         val cellH = size.height / (ClusterRows + (ClusterRows - 1) * gapRatio)
         val stepX = cellW * (1 + gapRatio)
         val stepY = cellH * (1 + gapRatio)
+        val radius = CornerRadius(minOf(cellW, cellH) * 0.32f)
         PixelCluster.forEach { (cx, cy) ->
-            drawRect(
+            drawRoundRect(
                 color = color,
                 topLeft = Offset(cx * stepX, cy * stepY),
                 size = Size(cellW, cellH),
+                cornerRadius = radius,
+            )
+        }
+    }
+}
+
+/**
+ * Like [ParametricPixels] but each lit pixel twinkles independently with a soft bloom — used as
+ * living "eye candy" on hero cards. When [active] is false it renders as a calm static cluster.
+ */
+@Composable
+fun SparklingPixels(
+    modifier: Modifier = Modifier,
+    color: Color = DigitalTeal,
+    active: Boolean = true,
+    gapRatio: Float = 0.28f,
+) {
+    val transition = rememberInfiniteTransition(label = "sparkle")
+    val t by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing)),
+        label = "t",
+    )
+    Canvas(modifier) {
+        val cellW = size.width / (ClusterCols + (ClusterCols - 1) * gapRatio)
+        val cellH = size.height / (ClusterRows + (ClusterRows - 1) * gapRatio)
+        val stepX = cellW * (1 + gapRatio)
+        val stepY = cellH * (1 + gapRatio)
+        val radius = CornerRadius(minOf(cellW, cellH) * 0.32f)
+        PixelCluster.forEachIndexed { idx, cell ->
+            val (cx, cy) = cell
+            val left = cx * stepX
+            val top = cy * stepY
+            // Independent phase per pixel gives an uncorrelated twinkle.
+            val a = if (active) (0.5f + 0.42f * sin(t + idx * 1.35f)).coerceIn(0.15f, 0.92f) else 0.30f
+            if (active && a > 0.6f) {
+                val grow = cellW * 0.4f
+                drawRoundRect(
+                    color = color.copy(alpha = (a - 0.6f) * 0.8f),
+                    topLeft = Offset(left - grow, top - grow),
+                    size = Size(cellW + grow * 2, cellH + grow * 2),
+                    cornerRadius = CornerRadius(radius.x + grow),
+                )
+            }
+            drawRoundRect(
+                color = color.copy(alpha = a),
+                topLeft = Offset(left, top),
+                size = Size(cellW, cellH),
+                cornerRadius = radius,
             )
         }
     }
@@ -56,17 +117,57 @@ fun PixelBand(
     color: Color = DigitalTeal,
     cells: Int = 12,
     gapRatio: Float = 0.35f,
+    dim: Boolean = true,
 ) {
     Canvas(modifier) {
         val cell = size.width / (cells + (cells - 1) * gapRatio)
         val step = cell * (1 + gapRatio)
         val h = minOf(cell, size.height)
         val top = (size.height - h) / 2f
+        val radius = CornerRadius(cell * 0.3f)
         repeat(cells) { i ->
-            drawRect(
-                color = if (i % 3 == 1) color.copy(alpha = color.alpha * 0.55f) else color,
+            drawRoundRect(
+                color = if (dim && i % 3 == 1) color.copy(alpha = color.alpha * 0.55f) else color,
                 topLeft = Offset(i * step, top),
                 size = Size(cell, h),
+                cornerRadius = radius,
+            )
+        }
+    }
+}
+
+/**
+ * An animated pixel band with a "scanner" highlight sweeping across it — used to convey the app
+ * is actively watching. Purely decorative and cheap to draw.
+ */
+@Composable
+fun ScanningPixelBand(
+    modifier: Modifier = Modifier,
+    color: Color = DigitalTeal,
+    cells: Int = 16,
+    gapRatio: Float = 0.4f,
+) {
+    val transition = rememberInfiniteTransition(label = "scan")
+    val head by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = (cells - 1).toFloat(),
+        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
+        label = "head",
+    )
+    Canvas(modifier) {
+        val cell = size.width / (cells + (cells - 1) * gapRatio)
+        val step = cell * (1 + gapRatio)
+        val h = minOf(cell, size.height)
+        val top = (size.height - h) / 2f
+        val radius = CornerRadius(cell * 0.3f)
+        repeat(cells) { i ->
+            val dist = abs(i - head)
+            val glow = (1f - (dist / 3f)).coerceIn(0.15f, 1f)
+            drawRoundRect(
+                color = color.copy(alpha = color.alpha * glow),
+                topLeft = Offset(i * step, top),
+                size = Size(cell, h),
+                cornerRadius = radius,
             )
         }
     }
@@ -79,3 +180,4 @@ fun PixelBadge(color: Color = DigitalTeal, width: Dp = 44.dp, height: Dp = 28.dp
         ParametricPixels(Modifier.size(width, height), color)
     }
 }
+
