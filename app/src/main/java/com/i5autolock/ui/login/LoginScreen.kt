@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -125,6 +126,15 @@ fun LoginScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    if (log.isNotEmpty()) {
+                        TextButton(onClick = {
+                            val text = log.asReversed().joinToString("\n") { it.message }
+                            clipboard.setText(AnnotatedString(text))
+                        }) { Text("Copy log") }
+                        TextButton(onClick = { viewModel.clearLog() }) { Text("Clear") }
+                    }
+                },
             )
         },
     ) { padding ->
@@ -135,6 +145,34 @@ fun LoginScreen(
         ) {
             if (state is LoginState.InProgress) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+
+            // Log panel — ALWAYS visible so problems are never hidden by the WebView.
+            if (log.isNotEmpty()) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .heightIn(max = 160.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    log.take(30).forEach { entry ->
+                        Text(
+                            entry.message,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = if (entry.level == LogLevel.ERROR) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
             }
 
             if (authorizeUrl == null) {
@@ -191,11 +229,14 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             scope.launch {
+                                viewModel.clearLog()
+                                viewModel.logInfo("Sign in requested for ${email.trim()}")
                                 viewModel.prepareWebLogin(email, pin)
                                 webAutofillEmail = email.trim()
                                 webAutofillPassword = password
                                 redirectPrefix = viewModel.redirectPrefix()
                                 authorizeUrl = viewModel.authorizeUrl()
+                                viewModel.logInfo("Opening Hyundai login page…")
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -275,42 +316,6 @@ fun LoginScreen(
                         onClick = { viewModel.demoLogin() },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("Skip and use Demo mode instead") }
-
-                    if (log.isNotEmpty()) {
-                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("Sign-in log", style = MaterialTheme.typography.labelLarge)
-                            TextButton(onClick = {
-                                val text = log.asReversed().joinToString("\n") { it.message }
-                                clipboard.setText(AnnotatedString(text))
-                            }) { Text("Copy") }
-                        }
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            log.take(12).forEach { entry ->
-                                Text(
-                                    entry.message,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = if (entry.level == LogLevel.ERROR) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
-                            }
-                        }
-                    }
                 }
             } else {
                 val autofillEmail = webAutofillEmail
@@ -326,11 +331,12 @@ fun LoginScreen(
                         TextButton(onClick = {
                             authorizeUrl = null
                             webAutofillPassword = null
+                            viewModel.logInfo("Sign-in cancelled.")
                             CookieManager.getInstance().removeAllCookies(null)
                             CookieManager.getInstance().flush()
                         }) { Text("Cancel") }
                         Text(
-                            (log.firstOrNull()?.message ?: "Loading Hyundai login…").take(60),
+                            "Signing in on Hyundai's page…",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -376,9 +382,13 @@ fun LoginScreen(
                                     val url = request?.url?.toString() ?: return false
                                     return if (url.startsWith(redirectPrefix)) {
                                         view?.stopLoading()
+                                        viewModel.logInfo("Captured redirect ✓")
                                         viewModel.onRedirectCaptured(url)
                                         true
-                                    } else false
+                                    } else {
+                                        viewModel.logInfo("→ ${sanitizeForLog(url)}")
+                                        false
+                                    }
                                 }
 
                                 override fun onPageStarted(
@@ -386,11 +396,40 @@ fun LoginScreen(
                                     url: String?,
                                     favicon: android.graphics.Bitmap?,
                                 ) {
-                                    // Server-side 302s don't always hit shouldOverrideUrlLoading.
-                                    if (url != null && url.startsWith(redirectPrefix)) {
+                                    if (url == null) return
+                                    if (url.startsWith(redirectPrefix)) {
                                         view?.stopLoading()
+                                        viewModel.logInfo("Captured redirect ✓")
                                         viewModel.onRedirectCaptured(url)
+                                    } else {
+                                        viewModel.logInfo("Loading ${sanitizeForLog(url)}")
                                     }
+                                }
+
+                                override fun onReceivedError(
+                                    view: WebView?,
+                                    request: WebResourceRequest?,
+                                    error: android.webkit.WebResourceError?,
+                                ) {
+                                    val url = request?.url?.toString().orEmpty()
+                                    val isMainFrame = request?.isForMainFrame == true
+                                    if (!isMainFrame) return
+                                    viewModel.logError(
+                                        "WebView error ${error?.errorCode}: ${error?.description} @ ${sanitizeForLog(url)}",
+                                    )
+                                }
+
+                                override fun onReceivedHttpError(
+                                    view: WebView?,
+                                    request: WebResourceRequest?,
+                                    errorResponse: android.webkit.WebResourceResponse?,
+                                ) {
+                                    val url = request?.url?.toString().orEmpty()
+                                    val isMainFrame = request?.isForMainFrame == true
+                                    if (!isMainFrame) return
+                                    viewModel.logError(
+                                        "HTTP ${errorResponse?.statusCode} ${errorResponse?.reasonPhrase} @ ${sanitizeForLog(url)}",
+                                    )
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -422,6 +461,19 @@ private fun openInBrowser(context: Context, url: String) {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     runCatching { context.startActivity(chooser) }
+}
+
+/** Log-safe URL: strips query strings that carry secrets and trims length. */
+private fun sanitizeForLog(url: String): String {
+    if (url.isEmpty()) return "(empty)"
+    val cut = url.substringBefore('?')
+    val q = url.substringAfter('?', "")
+    val safeQuery = if (q.isEmpty()) "" else {
+        val keys = q.split('&').mapNotNull { it.substringBefore('=', "").takeIf(String::isNotBlank) }
+        "?" + keys.joinToString(",")
+    }
+    val trimmed = "$cut$safeQuery"
+    return if (trimmed.length > 90) trimmed.take(90) + "…" else trimmed
 }
 
 /**

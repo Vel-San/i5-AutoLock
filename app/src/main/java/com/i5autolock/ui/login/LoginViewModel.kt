@@ -29,7 +29,7 @@ class LoginViewModel @Inject constructor(
     private val settingsRepo: SettingsRepository,
     private val provider: BlueLinkProvider,
     private val secureStore: SecureStore,
-    activityLog: ActivityLog,
+    private val activityLog: ActivityLog,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<LoginState>(LoginState.Idle)
@@ -37,6 +37,11 @@ class LoginViewModel @Inject constructor(
 
     /** Live diagnostic log surfaced under the sign-in form. */
     val log: StateFlow<List<LogEntry>> = activityLog.entries
+
+    /** Log an info line into the shared activity log so it stays visible across screens. */
+    fun logInfo(message: String) = activityLog.add(com.i5autolock.domain.LogLevel.INFO, message)
+    fun logError(message: String) = activityLog.add(com.i5autolock.domain.LogLevel.ERROR, message)
+    fun clearLog() = activityLog.clear()
 
     private var emailHint: String = ""
 
