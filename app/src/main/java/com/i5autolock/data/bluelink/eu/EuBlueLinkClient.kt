@@ -126,21 +126,19 @@ class EuBlueLinkClient(
         return try {
             diag("Login: exchanging code for tokens…")
             ensureDeviceRegistered()
-            // Talk to the IDP directly, matching bluelink-refresh-token. The CCSP token
-            // endpoint used to work as a stand-in but 401s on modern accounts.
-            val idp = config.idpBaseUrl ?: config.apiBaseUrl
-            val redirect = config.idpRedirectUri ?: config.redirectUri
-            val response: HttpResponse = http.post("$idp/auth/api/v2/user/oauth2/token") {
-                header("User-Agent", config.mobileUserAgent)
+            // CCSP browser-flow token exchange (matches bluelinky): basic auth + Stamp, code +
+            // redirect_uri only. Body must NOT include client_id or the server returns 400.
+            val response: HttpResponse = http.post("${config.apiBaseUrl}/api/v1/user/oauth2/token") {
+                config.basicAuth?.let { header("Authorization", it) }
+                header("Stamp", EuAuth.generateStamp(config))
+                header("User-Agent", "okhttp/3.12.0")
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody(
                     FormDataContent(
                         parameters {
                             append("grant_type", "authorization_code")
+                            append("redirect_uri", config.redirectUri)
                             append("code", authCodeOrPassword)
-                            append("redirect_uri", redirect)
-                            append("client_id", config.clientId)
-                            config.clientSecret?.let { append("client_secret", it) }
                         },
                     ),
                 )

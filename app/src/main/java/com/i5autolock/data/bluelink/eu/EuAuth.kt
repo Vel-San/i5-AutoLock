@@ -26,21 +26,18 @@ object EuAuth {
     }
 
     /**
-     * IDP authorize URL used inside the WebView. Mirrors `bluelink-refresh-token`:
-     * hits `idpconnect-eu.hyundai.com/auth/api/v2/user/oauth2/authorize` directly (not CCSP)
-     * and uses [RegionConfig.idpRedirectUri] as the callback we intercept.
+     * CCSP browser-flow authorize URL for the visible WebView. Matches bluelinky exactly —
+     * CCSP renders the actual IDP login form and, after signin, 302s to [RegionConfig.redirectUri]
+     * with `?code=…`. Loading the IDP mobile URL directly in a browser returns 400 (that URL is a
+     * machine-only endpoint for headless clients), which is why we go through CCSP here.
      */
     fun buildAuthorizeUrl(config: RegionConfig): String {
-        val idp = config.idpBaseUrl ?: config.apiBaseUrl
-        val redirect = config.idpRedirectUri ?: config.redirectUri
-        val base = "$idp/auth/api/v2/user/oauth2/authorize"
+        val base = "${config.apiBaseUrl}/api/v1/user/oauth2/authorize"
         val params = listOf(
             "response_type" to "code",
+            "state" to "test",
             "client_id" to config.clientId,
-            "redirect_uri" to redirect,
-            "lang" to "de",
-            "state" to "ccsp",
-            "country" to "de",
+            "redirect_uri" to config.redirectUri,
         ).joinToString("&") { (k, v) -> "$k=${urlEncode(v)}" }
         return "$base?$params"
     }

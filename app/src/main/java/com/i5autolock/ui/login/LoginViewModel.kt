@@ -52,10 +52,7 @@ class LoginViewModel @Inject constructor(
 
     suspend fun authorizeUrl(): String = EuAuth.buildAuthorizeUrl(regionConfig())
 
-    suspend fun redirectPrefix(): String {
-        val c = regionConfig()
-        return c.idpRedirectUri ?: c.redirectUri
-    }
+    suspend fun redirectPrefix(): String = regionConfig().redirectUri
 
     fun setEmailHint(email: String) { emailHint = email }
 
