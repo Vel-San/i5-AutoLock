@@ -415,7 +415,9 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
     `build/generated/changelog`, registered as a main assets srcDir, hooked to `preBuild`) so the app can
     read it without a committed duplicate under `src`.
   - In-app About/What's-new: `ui/about/AboutScreen` shows `BuildConfig.VERSION_NAME`/`VERSION_CODE`, a
-    lightly-rendered changelog from the bundled `CHANGELOG.md` asset, and a "View project" link. New
+    **Markdown-rendered** changelog from the bundled `CHANGELOG.md` asset (headings, bullets, horizontal
+    rules + inline **bold**/*italic*/`code`/clickable [links] via a dependency-free `parseInline` →
+    `AnnotatedString` using Compose `LinkAnnotation`), and a "View project" link. New
     `Routes.ABOUT`; Settings gained an "About" section (`onAbout`) and `AppNavigation` wires it. Strings
     added to `values` + `values-es`.
   - Release CI: `.github/workflows/release.yml` triggers on `v*` tags — builds `assembleRelease`,
@@ -429,20 +431,22 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   - CI guard now also requires `CHANGELOG.md` to exist. README "Continuous integration" section documents
     the release/tag flow and signing secrets.
 - Round 14 (notification icon colour + status-bar-icon toggle):
-  - Brand-tinted notification: both `AutoLockNotification` builders now `setColor(R.color.notification_accent)`
-    (`#32D6C0` Digital Teal, new `res/values/colors.xml`) so the small icon + app-name accent are tinted
-    in the shade/heads-up. NOTE: Android always renders the collapsed **status-bar** small icon as a
-    monochrome white alpha mask — full colour there is impossible by design; `ic_stat_autolock` already
-    matches the app-icon padlock silhouette.
+  - Brand-tinted notification: both `AutoLockNotification` builders `setColor(R.color.notification_accent)`
+    (`#32D6C0` Digital Teal, `res/values/colors.xml`) so the small icon + app-name accent are tinted in the
+    shade/heads-up. `ic_stat_autolock` is the **app-icon padlock silhouette** (viewport 108, shackle arch +
+    rounded body + the parametric-pixel keyhole carved out via `evenOdd`), NOT a generic lock. NOTE: Android
+    always renders the collapsed status-bar small icon as a monochrome white alpha mask — full colour there
+    is impossible by design.
   - Show/hide status-bar icon toggle: `AppSettings.showNotificationIcon` (default true, `SettingsRepository`
-    `SHOW_NOTIF_ICON` key). When off, the ongoing notification uses a **transparent** small icon
-    (`R.drawable.ic_stat_blank`) so nothing renders in the status bar (Android draws the small icon as an
-    alpha mask). It also posts on a minimal-importance channel (`AutoLockApp.CHANNEL_ID_MINIMAL`,
-    `IMPORTANCE_MIN`), but the transparent icon is what actually hides it — an `IMPORTANCE_MIN` channel
-    alone does NOT remove a foreground-service icon from the status bar on modern Android. Builders take
-    `channelId` + `@DrawableRes smallIcon`; `AutoLockService.channelId()`/`smallIcon()` pick them from the
-    tracked `showNotificationIcon`. `SettingsViewModel.setShowNotificationIcon` re-asserts watch so it
-    applies immediately. Settings → Notification "Show status-bar icon"; strings in all locales.
+    `SHOW_NOTIF_ICON` key). When off, the ongoing notification posts on the minimal-importance channel
+    (`AutoLockApp.CHANNEL_ID_MINIMAL`, `IMPORTANCE_MIN`) which keeps the foreground notification **out of the
+    status bar entirely — no icon, no empty gap**. Because a notification's channel can't change once posted,
+    `AutoLockService.postForeground()` tracks `postedChannelId` and does `stopForeground(STOP_FOREGROUND_REMOVE)`
+    + re-`startForeground` whenever the target channel changes, so `IMPORTANCE_MIN` actually takes effect (an
+    earlier transparent-icon hack left an empty status-bar slot and was removed). Builders take a `channelId`
+    param; `AutoLockService.channelId()` picks visible vs minimal from `showNotificationIcon`.
+    `SettingsViewModel.setShowNotificationIcon` re-asserts watch so it applies immediately. Settings →
+    Notification "Show status-bar icon"; strings in all locales.
 - Round 15 (v1.0.0 release prep + full localization):
   - Version bumped to `1.0.0`; `CHANGELOG.md` trimmed to a single first-release entry (no semver/Keep-a-
     Changelog preamble). `AboutScreen.PROJECT_URL` + changelog link point at
@@ -456,6 +460,27 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
     translates. Added **complete** `values-de`, `values-nl`, `values-fr` (and back-filled the new keys in
     `values-es`) — all four locales at 379 strings, no missing keys, lint clean. Only pure-domain
     `ActivityLog` messages remain English (no `Context` in the domain layer).
+- Round 16 (perf, settings-freeze fix, local backup/restore):
+  - Home lag (root-cause fix, animations KEPT): the two background `PixelField` textures were animating
+    **behind `Modifier.blur(5.dp)`**, and Compose's blur is a graphics-layer `RenderEffect` that is
+    recomputed every frame when the layer content changes — that per-frame blur re-eval was the jank. Fix:
+    removed the layer blur entirely and baked the soft "wash" into `PixelField`'s draw (each pixel = two
+    faint oversized halos + a crisp core, all solid `drawRoundRect`s — no allocations, no RenderEffect). The
+    twinkle animation runs at full frame rate again (`active = enabled`/`locked` restored). (An earlier pass
+    had wrongly set `active = false` to mask the lag — that's reverted.)
+  - Settings freeze (~3s on open): `SettingsViewModel.init` / `refreshDevices` / `loadVehicles` / `signOut`
+    ran blocking work on `viewModelScope` (Main dispatcher) — `provider.client()` + `isAuthenticated()` read
+    the EncryptedSharedPreferences/Keystore store (slow on first access) and blocked the UI. All blocking
+    bits now run in `withContext(Dispatchers.IO)`; `refreshDevices` is a coroutine that computes
+    `bondedDevices()` on IO. Auto-load-on-open kept but off-main.
+  - Local backup/restore: `data/backup/BackupManager` + `@Serializable SettingsBackup` (mirrors non-secret
+    `AppSettings`; **excludes** tokens/PIN/deviceId, and does NOT restore `enabled`/`onboardingComplete` to
+    avoid surprise activation). Pretty-printed JSON. `exportToAppFolder()` writes to
+    `getExternalFilesDir/backups/autolock-backup-<ts>.json`; `exportToUri`/`restoreFromUri` use the SAF
+    (`CreateDocument`/`OpenDocument`) via `contentResolver`, all on `Dispatchers.IO`. `SettingsViewModel`
+    injects `BackupManager`, adds a `_notice` toast flow + `exportToAppFolder`/`exportToUri`/`restoreFromUri`
+    (restore calls `provider.invalidate()`). Settings → "Backup & restore" section (Export to app folder /
+    Export to… / Restore from file); strings in all five locales.
 
 
 

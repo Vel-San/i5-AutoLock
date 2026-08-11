@@ -235,6 +235,18 @@
     <string name="about_open_source_body">AutoLock est open source. L\'intégralité du code, des tickets et des versions se trouve sur la page du projet.</string>
     <string name="about_view_project">Voir le projet</string>
     <string name="about_view_licenses">Licences open source</string>
+
+    <!-- Backup &amp; restore -->
+    <string name="sec_backup">Sauvegarde et restauration</string>
+    <string name="set_backup_intro">Enregistrez vos réglages dans un fichier, ou restaurez-les sur un autre appareil. Les jetons de compte et votre code PIN ne sont jamais inclus.</string>
+    <string name="set_backup_export_app">Exporter vers le dossier de l\'app</string>
+    <string name="set_backup_export_custom">Exporter vers…</string>
+    <string name="set_backup_restore">Restaurer depuis un fichier</string>
+    <string name="backup_exported">Sauvegarde enregistrée dans %1$s</string>
+    <string name="backup_export_ok">Sauvegarde enregistrée.</string>
+    <string name="backup_export_failed">Échec de la sauvegarde.</string>
+    <string name="backup_restored">Réglages restaurés.</string>
+    <string name="backup_restore_failed">Impossible de restaurer ce fichier.</string>
     <string name="schedule_enabled_title">Uniquement aux heures définies</string>
     <string name="schedule_enabled_sub">AutoLock reste inactif en dehors de cette plage horaire.</string>
     <string name="schedule_from">De %1$s</string>

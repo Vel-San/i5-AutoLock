@@ -5,8 +5,10 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +32,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.i5autolock.BuildConfig
 import com.i5autolock.R
@@ -112,28 +125,106 @@ fun AboutScreen(onBack: () -> Unit) {
     }
 }
 
+/** Renders one Markdown line: headings, bullets, horizontal rules + inline **bold**, *italic*, `code`, links. */
 @Composable
 private fun ChangelogLine(line: String) {
+    val linkColor = MaterialTheme.colorScheme.primary
+    val codeColor = MaterialTheme.colorScheme.secondary
+    val trimmed = line.trimStart()
     when {
-        line.startsWith("## ") -> Text(
-            line.removePrefix("## ").trim(),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-        )
+        line.startsWith("# ") -> Unit // top-level title, skip
         line.startsWith("### ") -> Text(
-            line.removePrefix("### ").trim(),
+            inlineMarkdown(line.removePrefix("### ").trim(), linkColor, codeColor),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
         )
-        line.startsWith("# ") -> Unit // top-level title, skip
-        line.startsWith("- ") || line.startsWith("* ") -> Text(
-            "•  " + line.drop(2).trim(),
+        line.startsWith("## ") -> Text(
+            inlineMarkdown(line.removePrefix("## ").trim(), linkColor, codeColor),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        trimmed == "---" || trimmed == "***" || trimmed == "___" -> HorizontalDivider()
+        trimmed.startsWith("- ") || trimmed.startsWith("* ") -> Text(
+            buildAnnotatedString {
+                append("•  ")
+                append(inlineMarkdown(trimmed.drop(2).trim(), linkColor, codeColor))
+            },
             style = MaterialTheme.typography.bodyMedium,
         )
-        else -> Text(line.trim(), style = MaterialTheme.typography.bodyMedium)
+        line.isBlank() -> Spacer(Modifier.height(2.dp))
+        else -> Text(
+            inlineMarkdown(line.trim(), linkColor, codeColor),
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
+
+/** Parses inline Markdown (bold, italic, code, links) into a styled, clickable [AnnotatedString]. */
+@Composable
+private fun inlineMarkdown(text: String, linkColor: Color, codeColor: Color): AnnotatedString =
+    remember(text, linkColor, codeColor) { parseInline(text, linkColor, codeColor) }
+
+private fun parseInline(text: String, linkColor: Color, codeColor: Color): AnnotatedString =
+    buildAnnotatedString {
+        var i = 0
+        val n = text.length
+        while (i < n) {
+            val rest = text.substring(i)
+            when {
+                // [label](url) → clickable link
+                text[i] == '[' -> {
+                    val closeBracket = text.indexOf(']', i + 1)
+                    val openParen = if (closeBracket != -1) closeBracket + 1 else -1
+                    if (closeBracket != -1 && openParen < n && text[openParen] == '(') {
+                        val closeParen = text.indexOf(')', openParen + 1)
+                        if (closeParen != -1) {
+                            val label = text.substring(i + 1, closeBracket)
+                            val url = text.substring(openParen + 1, closeParen)
+                            withLink(
+                                LinkAnnotation.Url(
+                                    url,
+                                    TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
+                                ),
+                            ) { append(label) }
+                            i = closeParen + 1
+                            continue
+                        }
+                    }
+                    append(text[i]); i++
+                }
+                // **bold** or __bold__
+                rest.startsWith("**") || rest.startsWith("__") -> {
+                    val delim = rest.substring(0, 2)
+                    val close = text.indexOf(delim, i + 2)
+                    if (close != -1) {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(text.substring(i + 2, close)) }
+                        i = close + 2
+                    } else { append(text[i]); i++ }
+                }
+                // `code`
+                text[i] == '`' -> {
+                    val close = text.indexOf('`', i + 1)
+                    if (close != -1) {
+                        withStyle(SpanStyle(fontFamily = FontFamily.Monospace, color = codeColor)) {
+                            append(text.substring(i + 1, close))
+                        }
+                        i = close + 1
+                    } else { append(text[i]); i++ }
+                }
+                // *italic* or _italic_
+                text[i] == '*' || text[i] == '_' -> {
+                    val delim = text[i]
+                    val close = text.indexOf(delim, i + 1)
+                    if (close != -1 && close > i + 1) {
+                        withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(text.substring(i + 1, close)) }
+                        i = close + 1
+                    } else { append(text[i]); i++ }
+                }
+                else -> { append(text[i]); i++ }
+            }
+        }
+    }
 
 /** Reads the bundled CHANGELOG.md, keeping only the human-readable body (no link refs). */
 private fun readChangelog(context: android.content.Context): List<String> = runCatching {

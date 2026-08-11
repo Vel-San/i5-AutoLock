@@ -235,6 +235,18 @@
     <string name="about_open_source_body">AutoLock ist Open Source. Der gesamte Code, Issues und Releases befinden sich auf der Projektseite.</string>
     <string name="about_view_project">Projekt ansehen</string>
     <string name="about_view_licenses">Open-Source-Lizenzen</string>
+
+    <!-- Backup &amp; restore -->
+    <string name="sec_backup">Sichern &amp; wiederherstellen</string>
+    <string name="set_backup_intro">Speichere deine Einstellungen in einer Datei oder stelle sie auf einem anderen Gerät wieder her. Konto-Tokens und deine PIN werden nie mit gesichert.</string>
+    <string name="set_backup_export_app">In App-Ordner exportieren</string>
+    <string name="set_backup_export_custom">Exportieren nach…</string>
+    <string name="set_backup_restore">Aus Datei wiederherstellen</string>
+    <string name="backup_exported">Sicherung gespeichert unter %1$s</string>
+    <string name="backup_export_ok">Sicherung gespeichert.</string>
+    <string name="backup_export_failed">Sicherung fehlgeschlagen.</string>
+    <string name="backup_restored">Einstellungen wiederhergestellt.</string>
+    <string name="backup_restore_failed">Diese Datei konnte nicht wiederhergestellt werden.</string>
     <string name="schedule_enabled_title">Nur zu festgelegten Zeiten</string>
     <string name="schedule_enabled_sub">AutoLock bleibt außerhalb dieses Zeitfensters inaktiv.</string>
     <string name="schedule_from">Von %1$s</string>

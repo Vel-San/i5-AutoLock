@@ -2,6 +2,7 @@ package com.i5autolock.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.i5autolock.data.backup.BackupManager
 import com.i5autolock.data.bluelink.BlueLinkProvider
 import com.i5autolock.data.bluelink.Region
 import com.i5autolock.data.bluelink.model.Vehicle
@@ -19,12 +20,14 @@ import com.i5autolock.service.AutoLockService
 import com.i5autolock.work.StatusRefreshWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class SettingsUiExtras(
@@ -40,6 +43,7 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepo: SettingsRepository,
     private val bluetoothDevices: BluetoothDevices,
     private val provider: BlueLinkProvider,
+    private val backupManager: BackupManager,
     private val log: ActivityLog,
 ) : ViewModel() {
 
@@ -49,24 +53,35 @@ class SettingsViewModel @Inject constructor(
     private val _extras = MutableStateFlow(SettingsUiExtras())
     val extras: StateFlow<SettingsUiExtras> = _extras
 
+    // One-shot user messages (backup results, etc.) surfaced as a toast by the screen.
+    private val _notice = MutableStateFlow<String?>(null)
+    val notice: StateFlow<String?> = _notice
+    fun clearNotice() { _notice.value = null }
+
     init {
         refreshDevices()
+        // Auth checks read the encrypted token store (Keystore/crypto) which is slow on first access,
+        // so everything blocking runs off the main thread to keep the Settings screen responsive.
         viewModelScope.launch {
             val s = settingsRepo.settings.first()
             // Show the cached vehicle list instantly so the picker survives restarts/navigation.
             if (s.knownVehicles.isNotEmpty()) {
                 _extras.value = _extras.value.copy(vehicles = s.knownVehicles.map { it.toVehicle() })
             }
-            val client = provider.client(s)
-            val signedIn = client.isAuthenticated()
+            // Signed-in status must reflect the REAL account, not the demo client — otherwise turning
+            // on Demo mode makes it look signed-out even though the session (and email) still exist.
+            val signedIn = s.accountEmail != null || withContext(Dispatchers.IO) {
+                runCatching { provider.client(s.copy(demoMode = false)).isAuthenticated() }.getOrDefault(false)
+            }
             _extras.value = _extras.value.copy(signedIn = signedIn)
             // Auto-load vehicles on open when signed in — no more "hit Load every launch".
             if (signedIn && !s.demoMode) loadVehicles()
         }
     }
 
-    fun refreshDevices() {
-        _extras.value = _extras.value.copy(pairedDevices = bluetoothDevices.bondedDevices())
+    fun refreshDevices() = viewModelScope.launch {
+        val devices = withContext(Dispatchers.IO) { bluetoothDevices.bondedDevices() }
+        _extras.value = _extras.value.copy(pairedDevices = devices)
     }
 
     private fun update(transform: (AppSettings) -> AppSettings) = viewModelScope.launch {
@@ -142,7 +157,7 @@ class SettingsViewModel @Inject constructor(
     fun loadVehicles() = viewModelScope.launch {
         _extras.value = _extras.value.copy(loadingVehicles = true)
         val s = settingsRepo.settings.first()
-        val result = runCatching { provider.client(s).vehicles() }
+        val result = withContext(Dispatchers.IO) { runCatching { provider.client(s).vehicles() } }
         val loaded = result.getOrElse {
             log.add(LogLevel.ERROR, "Couldn't load vehicles: ${it.message}")
             // Keep whatever we already have (cache) rather than blanking the picker.
@@ -161,10 +176,34 @@ class SettingsViewModel @Inject constructor(
 
     fun signOut() = viewModelScope.launch {
         val s = settingsRepo.settings.first()
-        provider.client(s).clearSession()
+        withContext(Dispatchers.IO) { provider.client(s).clearSession() }
         settingsRepo.update { it.copy(accountEmail = null, vehicleId = null, vehicleNickname = null, knownVehicles = emptyList()) }
         _extras.value = _extras.value.copy(signedIn = false, vehicles = emptyList())
         log.add(LogLevel.INFO, "Signed out.")
+    }
+
+    // ── Backup & restore ────────────────────────────────────────────────
+    fun suggestedBackupFileName(): String = backupManager.suggestedFileName()
+
+    fun exportToAppFolder() = viewModelScope.launch {
+        runCatching { backupManager.exportToAppFolder() }
+            .onSuccess { _notice.value = appContext.getString(com.i5autolock.R.string.backup_exported, it) }
+            .onFailure { _notice.value = appContext.getString(com.i5autolock.R.string.backup_export_failed) }
+    }
+
+    fun exportToUri(uri: android.net.Uri) = viewModelScope.launch {
+        runCatching { backupManager.exportToUri(uri) }
+            .onSuccess { _notice.value = appContext.getString(com.i5autolock.R.string.backup_export_ok) }
+            .onFailure { _notice.value = appContext.getString(com.i5autolock.R.string.backup_export_failed) }
+    }
+
+    fun restoreFromUri(uri: android.net.Uri) = viewModelScope.launch {
+        runCatching { backupManager.restoreFromUri(uri) }
+            .onSuccess {
+                provider.invalidate()
+                _notice.value = appContext.getString(com.i5autolock.R.string.backup_restored)
+            }
+            .onFailure { _notice.value = appContext.getString(com.i5autolock.R.string.backup_restore_failed) }
     }
 
     fun onSignedIn(email: String) = viewModelScope.launch {

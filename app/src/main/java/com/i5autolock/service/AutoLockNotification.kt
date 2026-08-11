@@ -4,7 +4,6 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import androidx.annotation.DrawableRes
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.i5autolock.AutoLockApp
@@ -23,7 +22,6 @@ object AutoLockNotification {
         statusSummary: String? = null,
         pinned: Boolean = true,
         channelId: String = AutoLockApp.CHANNEL_ID,
-        @DrawableRes smallIcon: Int = R.drawable.ic_stat_autolock,
     ): Notification {
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -48,7 +46,7 @@ object AutoLockNotification {
         val text = statusSummary?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.notif_watching_body)
         return NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(smallIcon)
+            .setSmallIcon(R.drawable.ic_stat_autolock)
             .setColor(ContextCompat.getColor(context, R.color.notification_accent))
             .setContentTitle(context.getString(R.string.notif_watching_title))
             .setContentText(text)
@@ -69,7 +67,6 @@ object AutoLockNotification {
         statusSummary: String? = null,
         showLockNow: Boolean = false,
         channelId: String = AutoLockApp.CHANNEL_ID,
-        @DrawableRes smallIcon: Int = R.drawable.ic_stat_autolock,
     ): Notification {
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -96,7 +93,7 @@ object AutoLockNotification {
         val canLockNow = showLockNow && waiting
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(smallIcon)
+            .setSmallIcon(R.drawable.ic_stat_autolock)
             .setColor(ContextCompat.getColor(context, R.color.notification_accent))
             .setContentTitle(title)
             .setContentText(text)

@@ -64,8 +64,9 @@ fun ParametricPixels(
 
 /**
  * A scattered field of pixels tiled across the whole area — meant to sit behind card content as a
- * soft, blurred background texture. Each pixel twinkles independently when [active]. Keep the
- * [color] alpha low and apply `Modifier.blur(...)` at the call site for a subtle wash.
+ * soft background texture. Each pixel twinkles independently when [active]. The soft "wash" look is
+ * baked into the draw (layered low-alpha halos) rather than a `Modifier.blur(...)` at the call site,
+ * because blurring animated content re-runs the blur render effect every frame (jank).
  */
 @Composable
 fun PixelField(
@@ -89,7 +90,8 @@ fun PixelField(
         if (step <= 0f) return@Canvas
         val cols = ceil(size.width / step).toInt() + 1
         val rows = ceil(size.height / step).toInt() + 1
-        val radius = CornerRadius(c * 0.32f)
+        val coreCorner = CornerRadius(c * 0.32f)
+        val softCorner = CornerRadius(c * 0.7f)
         for (row in 0 until rows) {
             for (col in 0 until cols) {
                 val seed = (row * 73856093) xor (col * 19349663)
@@ -99,11 +101,28 @@ fun PixelField(
                     val phase = ((seed ushr 5) % 628) / 100f
                     (0.45f + 0.4f * sin(t + phase)).coerceIn(0.12f, 0.85f)
                 } else 0.5f
+                val baseAlpha = color.alpha * a
+                val x = col * step
+                val y = row * step
+                // Two faint, oversized halos + a crisp core approximate a blur wash — all solid
+                // draws (no allocations, no per-frame RenderEffect), so it animates smoothly.
                 drawRoundRect(
-                    color = color.copy(alpha = color.alpha * a),
-                    topLeft = Offset(col * step, row * step),
+                    color = color.copy(alpha = baseAlpha * 0.18f),
+                    topLeft = Offset(x - c * 0.6f, y - c * 0.6f),
+                    size = Size(c * 2.2f, c * 2.2f),
+                    cornerRadius = softCorner,
+                )
+                drawRoundRect(
+                    color = color.copy(alpha = baseAlpha * 0.30f),
+                    topLeft = Offset(x - c * 0.3f, y - c * 0.3f),
+                    size = Size(c * 1.6f, c * 1.6f),
+                    cornerRadius = softCorner,
+                )
+                drawRoundRect(
+                    color = color.copy(alpha = baseAlpha),
+                    topLeft = Offset(x, y),
                     size = Size(c, c),
-                    cornerRadius = radius,
+                    cornerRadius = coreCorner,
                 )
             }
         }

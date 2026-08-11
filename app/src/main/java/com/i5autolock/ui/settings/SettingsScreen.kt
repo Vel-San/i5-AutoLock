@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -75,6 +76,21 @@ fun SettingsScreen(
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             viewModel.setCustomLockSoundUri(uri?.toString())
+        }
+    }
+
+    // Backup: pick a destination file (export) / a file to restore.
+    val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let(viewModel::exportToUri)
+    }
+    val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::restoreFromUri)
+    }
+    val notice by viewModel.notice.collectAsStateWithLifecycle()
+    LaunchedEffect(notice) {
+        notice?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearNotice()
         }
     }
 
@@ -133,8 +149,10 @@ fun SettingsScreen(
             // Account.
             Section(stringResource(R.string.sec_account)) {
                 Text(settings.accountEmail ?: stringResource(R.string.set_not_signed_in), fontWeight = FontWeight.Medium)
+                // Tie the buttons to the same signal as the email above so they never disagree.
+                val signedIn = extras.signedIn || settings.accountEmail != null
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (extras.signedIn) {
+                    if (signedIn) {
                         OutlinedButton(onClick = viewModel::signOut) { Text(stringResource(R.string.set_sign_out)) }
                         Button(onClick = viewModel::loadVehicles) { Text(stringResource(R.string.set_reload_vehicles)) }
                     } else {
@@ -489,6 +507,29 @@ fun SettingsScreen(
                 )
                 OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.set_open_about))
+                }
+            }
+
+            // Backup & restore.
+            Section(stringResource(R.string.sec_backup)) {
+                Text(
+                    stringResource(R.string.set_backup_intro),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Button(onClick = viewModel::exportToAppFolder, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.set_backup_export_app))
+                }
+                OutlinedButton(
+                    onClick = { exportPicker.launch(viewModel.suggestedBackupFileName()) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.set_backup_export_custom))
+                }
+                OutlinedButton(
+                    onClick = { restorePicker.launch(arrayOf("application/json", "application/octet-stream", "text/*")) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.set_backup_restore))
                 }
             }
         }

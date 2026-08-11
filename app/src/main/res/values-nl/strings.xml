@@ -235,6 +235,18 @@
     <string name="about_open_source_body">AutoLock is open source. De volledige code, issues en releases staan op de projectpagina.</string>
     <string name="about_view_project">Project bekijken</string>
     <string name="about_view_licenses">Open-source-licenties</string>
+
+    <!-- Backup &amp; restore -->
+    <string name="sec_backup">Back-up &amp; herstellen</string>
+    <string name="set_backup_intro">Sla je instellingen op in een bestand of herstel ze op een ander apparaat. Accounttokens en je pincode worden nooit meegenomen.</string>
+    <string name="set_backup_export_app">Naar app-map exporteren</string>
+    <string name="set_backup_export_custom">Exporteren naar…</string>
+    <string name="set_backup_restore">Herstellen uit bestand</string>
+    <string name="backup_exported">Back-up opgeslagen in %1$s</string>
+    <string name="backup_export_ok">Back-up opgeslagen.</string>
+    <string name="backup_export_failed">Back-up mislukt.</string>
+    <string name="backup_restored">Instellingen hersteld.</string>
+    <string name="backup_restore_failed">Kon dat bestand niet herstellen.</string>
     <string name="schedule_enabled_title">Alleen tijdens ingestelde uren</string>
     <string name="schedule_enabled_sub">AutoLock blijft inactief buiten dit tijdvenster.</string>
     <string name="schedule_from">Van %1$s</string>

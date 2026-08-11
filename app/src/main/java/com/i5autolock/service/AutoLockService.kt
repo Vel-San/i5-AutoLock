@@ -48,6 +48,8 @@ class AutoLockService : Service() {
     private var showStatus: Boolean = true
     // When false, the ongoing notification uses a minimal channel so no status-bar icon shows.
     private var showNotificationIcon: Boolean = true
+    // The channel the foreground notification is currently posted on (to detect channel changes).
+    private var postedChannelId: String? = null
     // Last-known vehicle status line, kept so the "watching" notification can still show it.
     private var lastSummary: String? = null
     private var currentDetection: DetectionState = DetectionState.IDLE
@@ -203,29 +205,36 @@ class AutoLockService : Service() {
     }
 
     private fun startForegroundCompat(state: DetectionState, grace: Int, summary: String? = null) {
-        val notification = AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId(), smallIcon())
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-        } else 0
-        ServiceCompat.startForeground(this, AutoLockNotification.NOTIFICATION_ID, notification, type)
+        val channel = channelId()
+        postForeground(AutoLockNotification.build(this, state, grace, summary, showLockNow, channel), channel)
     }
 
     private fun startForegroundWatch() {
         val summary = if (showStatus) lastSummary else null
-        val notification = AutoLockNotification.buildWatching(this, statusSummary = summary, pinned = pinNotification, channelId = channelId(), smallIcon = smallIcon())
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-        } else 0
-        ServiceCompat.startForeground(this, AutoLockNotification.NOTIFICATION_ID, notification, type)
+        val channel = channelId()
+        postForeground(
+            AutoLockNotification.buildWatching(this, statusSummary = summary, pinned = pinNotification, channelId = channel),
+            channel,
+        )
     }
-    // Hiding the status-bar icon: post on the minimal channel AND use a transparent small icon.
-    // The channel alone isn't reliable for foreground services on modern Android — the OS keeps the
-    // FGS icon in the status bar — so the transparent icon (rendered as an empty alpha mask) is what
-    // actually removes it.
+
+    private fun fgServiceType(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+
+    // A notification's channel can't change once it's posted. So when the target channel changes
+    // (e.g. the status-bar-icon toggle switches to the minimal channel), remove it first and re-post
+    // fresh — that's what makes IMPORTANCE_MIN take effect and leaves NO status-bar icon or gap.
+    private fun postForeground(notification: android.app.Notification, channel: String) {
+        if (postedChannelId != null && postedChannelId != channel) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        }
+        ServiceCompat.startForeground(this, AutoLockNotification.NOTIFICATION_ID, notification, fgServiceType())
+        postedChannelId = channel
+    }
+
+    // Off = the minimal-importance channel, which keeps the foreground notification out of the status bar.
     private fun channelId(): String =
         if (showNotificationIcon) com.i5autolock.AutoLockApp.CHANNEL_ID else com.i5autolock.AutoLockApp.CHANNEL_ID_MINIMAL
-    private fun smallIcon(): Int =
-        if (showNotificationIcon) com.i5autolock.R.drawable.ic_stat_autolock else com.i5autolock.R.drawable.ic_stat_blank
     private fun updateNotification(state: DetectionState, grace: Int, summary: String?) {
         when {
             // Resting state while watching → the persistent "watching" notification.
@@ -236,7 +245,7 @@ class AutoLockService : Service() {
                 if (!canPostNotifications()) return
                 try {
                     NotificationManagerCompat.from(this)
-                        .notify(AutoLockNotification.NOTIFICATION_ID, AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId(), smallIcon()))
+                        .notify(AutoLockNotification.NOTIFICATION_ID, AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId()))
                 } catch (_: SecurityException) {
                     // Notifications permission revoked between check and post — ignore.
                 }

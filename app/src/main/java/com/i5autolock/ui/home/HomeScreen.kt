@@ -76,7 +76,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
@@ -459,11 +458,9 @@ private fun StatusCard(
                 ),
         ) {
             val onGradient = if (enabled) Color.White else MaterialTheme.colorScheme.onSurface
-            // Subtle blurred pixel texture behind the content.
+            // Soft animated pixel texture behind the content (softness baked into the draw, no blur).
             PixelField(
-                modifier = Modifier
-                    .matchParentSize()
-                    .blur(5.dp),
+                modifier = Modifier.matchParentSize(),
                 color = onGradient.copy(alpha = 0.16f),
                 active = enabled,
             )
@@ -593,11 +590,9 @@ private fun VehicleStatusCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
     ) {
         Box(Modifier.fillMaxWidth().background(gradient)) {
-            // Subtle blurred pixel texture behind the content.
+            // Soft animated pixel texture behind the content (softness baked into the draw, no blur).
             PixelField(
-                modifier = Modifier
-                    .matchParentSize()
-                    .blur(5.dp),
+                modifier = Modifier.matchParentSize(),
                 color = onCard.copy(alpha = 0.16f),
                 active = lockState == LockState.LOCKED,
             )
