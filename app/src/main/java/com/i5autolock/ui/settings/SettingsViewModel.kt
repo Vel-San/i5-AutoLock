@@ -109,6 +109,12 @@ class SettingsViewModel @Inject constructor(
         com.i5autolock.service.NotificationChannels.ensure(appContext, enabled)
         if (settingsRepo.settings.first().enabled) AutoLockService.startWatching(appContext)
     }
+    fun setShowNotificationIcon(enabled: Boolean) = viewModelScope.launch {
+        settingsRepo.update { it.copy(showNotificationIcon = enabled) }
+        // The icon lives on the channel importance; re-post the watching notification so the
+        // ongoing notification switches to the visible/minimal channel immediately.
+        if (settingsRepo.settings.first().enabled) AutoLockService.startWatching(appContext)
+    }
     /** Play the currently-configured lock sound (custom if set, else the default chime) to test it. */
     fun testLockSound() = viewModelScope.launch {
         val s = settingsRepo.settings.first()

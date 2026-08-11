@@ -156,13 +156,30 @@ app/src/main/java/com/i5autolock/
 
 ## Continuous integration
 [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every push and PR:
-- **guard** — verifies `CLAUDE.md`/`README.md` exist and `CLAUDE.md` stays current (with a
-  Changelog), blocks committed secrets/keystores/config, and scans for secret patterns
-  (plus best-effort gitleaks).
+- **guard** — verifies `CLAUDE.md`/`README.md`/`CHANGELOG.md` exist and `CLAUDE.md` stays
+  current (with a Changelog), blocks committed secrets/keystores/config, and scans for
+  secret patterns (plus best-effort gitleaks).
 - **android** — validates the Gradle wrapper, sets up JDK 17 + SDK 35, then runs
   `testDebugUnitTest`, `lint`, and `assembleDebug`, uploading the reports.
 
 Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) keeps Gradle and Actions deps patched.
+
+### Releases
+[.github/workflows/release.yml](.github/workflows/release.yml) publishes a GitHub Release with
+a built APK whenever you push a version tag:
+
+```bash
+# bump versionName/versionCode in app/build.gradle.kts and add a CHANGELOG section first
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release notes are taken from the matching `## [0.1.0]` section of
+[CHANGELOG.md](CHANGELOG.md) (the same file the in-app **About → What's new** screen shows).
+To ship a **signed** APK, add these repository secrets (otherwise the APK is unsigned):
+`RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`.
+Locally you can sign by setting the same keys (minus the `_BASE64`, using `RELEASE_STORE_FILE`)
+in `local.properties`.
 
 ## Troubleshooting
 - **`SDK location not found`** — create `local.properties` with `sdk.dir=...` (see

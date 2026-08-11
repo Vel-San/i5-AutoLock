@@ -2,6 +2,8 @@
     <string name="app_name">AutoLock</string>
     <string name="notification_channel_name">Actividad de auto-bloqueo</string>
     <string name="notification_channel_desc">Se muestra cuando AutoLock vigila si te alejas del coche.</string>
+    <string name="notification_channel_min_name">Actividad de auto-bloqueo (sin icono en la barra)</string>
+    <string name="notification_channel_min_desc">Igual que arriba, pero sin mostrarse en la barra de estado.</string>
 
     <!-- Onboarding -->
     <string name="onboarding_skip">Omitir</string>
@@ -40,6 +42,23 @@
     <string name="notif_default_title">AutoLock</string>
     <string name="notif_default_body">Vigilando si te alejas del coche.</string>
 
+    <!-- Notification content fields (Settings toggles + status summary line) -->
+    <string name="notif_field_lock_state">Estado del bloqueo</string>
+    <string name="notif_field_ev_battery">Batería de tracción %</string>
+    <string name="notif_field_range">Autonomía</string>
+    <string name="notif_field_engine">Motor</string>
+    <string name="notif_field_twelve_volt">Batería 12 V %</string>
+    <string name="notif_field_climate">Climatización</string>
+    <string name="summary_locked">Bloqueado</string>
+    <string name="summary_unlocked">Desbloqueado</string>
+    <string name="summary_lock_unknown">Bloqueo: ?</string>
+    <string name="summary_engine_on">Motor encendido</string>
+    <string name="summary_engine_off">Motor apagado</string>
+    <string name="summary_climate_on">Clima encendido</string>
+    <string name="summary_climate_off">Clima apagado</string>
+    <string name="summary_twelve_volt">12 V</string>
+    <string name="summary_range_unit">km</string>
+
     <!-- Permissions -->
     <string name="perm_title">AutoLock necesita algunos permisos</string>
     <string name="perm_body">• Bluetooth: para detectar cuando dejas el coche\n• Ubicación: para confirmar que te has alejado\n• Actividad: para distinguir conducir de caminar\n• Notificaciones: para mostrar el estado del bloqueo</string>
@@ -51,6 +70,7 @@
     <string name="action_cancel">Cancelar</string>
     <string name="action_sign_in">Iniciar sesión</string>
     <string name="action_lock_now">Bloquear ahora</string>
+    <string name="action_already_locked">Ya bloqueado</string>
     <string name="badge_demo">DEMO</string>
     <string name="badge_dry_run">PRUEBA</string>
     <string name="badge_armed">ACTIVADO</string>
@@ -161,6 +181,8 @@
     <string name="set_low_volt_threshold">Avisar por debajo de: %1$d%%</string>
     <string name="set_badge_title">Mostrar insignia en el icono</string>
     <string name="set_badge_sub">Muestra un punto/contador en el icono de la app. Desactivado por defecto, ya que la notificación ya está.</string>
+    <string name="set_notif_icon_title">Mostrar icono en la barra de estado</string>
+    <string name="set_notif_icon_sub">Muestra el icono de AutoLock en la barra de estado. Si se desactiva, la notificación solo aparece al desplegar.</string>
     <string name="set_auto_refresh_open_title">Actualizar al abrir</string>
     <string name="set_auto_refresh_open_sub">Obtén el estado del vehículo al abrir la app.</string>
     <string name="set_bg_check_title">Comprobación automática en segundo plano</string>
@@ -200,6 +222,19 @@
     <string name="set_open_stats">Abrir estadísticas de la API</string>
     <string name="set_help_intro">¿Nuevo aquí? La página de ayuda explica cada ajuste y cómo funciona el bloqueo automático.</string>
     <string name="set_open_help">Abrir ayuda y tutorial</string>
+    <string name="sec_about">Acerca de</string>
+    <string name="set_about_intro">Versión de la app, notas de la versión y enlaces del proyecto.</string>
+    <string name="set_open_about">Acerca de y novedades</string>
+    <string name="about_title">Acerca de</string>
+    <string name="about_hero_eyebrow">AutoLock</string>
+    <string name="about_hero_subtitle">Versión, notas de la versión y enlaces.</string>
+    <string name="about_version">Versión %1$s (compilación %2$d)</string>
+    <string name="about_whats_new">Novedades</string>
+    <string name="about_changelog_unavailable">Las notas de la versión no están disponibles en esta compilación.</string>
+    <string name="about_open_source">Código abierto</string>
+    <string name="about_open_source_body">AutoLock es de código abierto. Todo el código, los problemas y las versiones están en la página del proyecto.</string>
+    <string name="about_view_project">Ver proyecto</string>
+    <string name="about_view_licenses">Licencias de código abierto</string>
     <string name="schedule_enabled_title">Solo en el horario fijado</string>
     <string name="schedule_enabled_sub">AutoLock permanece inactivo fuera de esta franja horaria.</string>
     <string name="schedule_from">Desde %1$s</string>
@@ -264,4 +299,117 @@
     <string name="help_hero_eyebrow">Guía</string>
     <string name="help_hero_title">Cómo funciona</string>
     <string name="help_hero_body">AutoLock hace una sola cosa: detecta cuando dejas tu coche (sin cerrar) y lo bloquea por ti. Esta página explica cada ajuste para que lo configures con confianza.</string>
+
+    <!-- Help sections -->
+    <string name="help_sec_flow">El proceso de bloqueo, paso a paso</string>
+    <string name="help_flow_1_t">1. Disparador</string>
+    <string name="help_flow_1_d">Tu teléfono se desconecta del Bluetooth del coche — la señal más clara de que acabas de salir y alejarte.</string>
+    <string name="help_flow_2_t">2. Confirmar</string>
+    <string name="help_flow_2_d">Opcionalmente, el reconocimiento de actividad (conducir → caminar) y/o una geoccerca confirman que te fuiste de verdad, para que un corte breve de Bluetooth no bloquee el coche.</string>
+    <string name="help_flow_3_t">3. Gracia</string>
+    <string name="help_flow_3_d">Empieza una cuenta atrás (tú fijas la duración). Volver a entrar o tocar Cancelar la aborta.</string>
+    <string name="help_flow_4_t">4. Verificar</string>
+    <string name="help_flow_4_d">AutoLock lee el estado en vivo del coche y solo continúa si está realmente desbloqueado y el motor apagado.</string>
+    <string name="help_flow_5_t">5. Bloquear</string>
+    <string name="help_flow_5_d">Envía la orden de bloqueo — o, en modo Simulación, solo registra lo que habría hecho.</string>
+
+    <string name="help_sec_home">Pantalla de inicio</string>
+    <string name="help_home_1_t">Interruptor principal</string>
+    <string name="help_home_1_d">Enciende o apaga todo el vigilante. Cuando está apagado, no ocurre nada automáticamente.</string>
+    <string name="help_home_2_t">Tarjeta de estado</string>
+    <string name="help_home_2_d">Muestra el estado actual: Inactivo, Confirmando, Bloqueando en Ns, Bloqueado ✓, Omitido o un error.</string>
+    <string name="help_home_3_t">Simular salida</string>
+    <string name="help_home_3_d">Ejecuta todo el proceso a demanda para probarlo con seguridad (sobre todo con Simulación activada).</string>
+    <string name="help_home_4_t">Cancelar</string>
+    <string name="help_home_4_d">Aborta de inmediato una evaluación en curso.</string>
+    <string name="help_home_5_t">Actividad reciente</string>
+    <string name="help_home_5_d">Un registro en vivo de lo que hace AutoLock y por qué.</string>
+
+    <string name="help_sec_safety">Seguridad</string>
+    <string name="help_safety_1_t">Modo demo</string>
+    <string name="help_safety_1_d">Usa un coche simulado — no hace falta cuenta de BlueLink ni vehículo real. Perfecto para probar la app. Desactívalo para usar tu coche real.</string>
+    <string name="help_safety_2_t">Simulación</string>
+    <string name="help_safety_2_d">El modo predeterminado y más seguro. Ejecuta todo pero NUNCA envía una orden de bloqueo real; registra «habría bloqueado». Úsalo hasta que confíes en la detección.</string>
+    <string name="help_safety_3_t">Armado</string>
+    <string name="help_safety_3_d">Envía órdenes de bloqueo reales a tu coche. Cambia a esto solo cuando la Simulación se comporte como esperas.</string>
+    <string name="help_safety_4_t">Confirmar antes de bloquear</string>
+    <string name="help_safety_4_d">En lugar de bloquear automáticamente, AutoLock te preguntará primero (mediante una notificación) antes de enviar la orden.</string>
+
+    <string name="help_sec_account">Cuenta</string>
+    <string name="help_account_1_t">Región</string>
+    <string name="help_account_1_d">Dónde está registrada tu cuenta de BlueLink. Europa (EU) usa un inicio de sesión web seguro para obtener un token; otras regiones usan un inicio directo. EU es la región principalmente compatible.</string>
+    <string name="help_account_2_t">Iniciar sesión</string>
+    <string name="help_account_2_d">Abre la página de inicio de sesión real de Hyundai en una ventana bloqueada y protegida contra capturas. Tu token se captura en el dispositivo y se guarda cifrado. AutoLock nunca ve tu contraseña.</string>
+    <string name="help_account_3_t">Recargar vehículos</string>
+    <string name="help_account_3_d">Obtiene los coches de tu cuenta para que puedas elegir uno.</string>
+    <string name="help_account_4_t">Cerrar sesión</string>
+    <string name="help_account_4_d">Elimina la sesión guardada del dispositivo.</string>
+
+    <string name="help_sec_vehbt">Vehículo y Bluetooth del coche</string>
+    <string name="help_vehbt_1_t">Vehículo</string>
+    <string name="help_vehbt_1_d">Elige el coche que AutoLock debe bloquear. Cárgalo primero desde tu cuenta.</string>
+    <string name="help_vehbt_2_t">Bluetooth del coche</string>
+    <string name="help_vehbt_2_d">Elige el dispositivo Bluetooth emparejado que significa «estoy en el coche» (radio / manos libres). Desconectarse de él es el disparador principal, así que esto debe estar configurado para el bloqueo automático.</string>
+    <string name="help_vehbt_3_t">Actualizar dispositivos emparejados</string>
+    <string name="help_vehbt_3_d">Vuelve a escanear los dispositivos Bluetooth emparejados de tu teléfono si tu coche aún no aparece.</string>
+
+    <string name="help_sec_detect">Detección</string>
+    <string name="help_detect_1_t">Desconexión de Bluetooth</string>
+    <string name="help_detect_1_d">El disparador principal. Cuando tu teléfono sale del alcance Bluetooth del coche, empieza una evaluación. Recomendado: activado.</string>
+    <string name="help_detect_2_t">Confirmación por actividad</string>
+    <string name="help_detect_2_d">Requiere que tu teléfono detecte un cambio de conducir → caminar antes de bloquear. Reduce falsos disparos (p. ej. una interferencia de radio pasajera). Necesita el permiso de Actividad.</string>
+    <string name="help_detect_3_t">Confirmación por geoccerca</string>
+    <string name="help_detect_3_d">Requiere que te alejes físicamente de donde está aparcado el coche antes de bloquear. Necesita permiso de ubicación.</string>
+    <string name="help_detect_4_t">Radio de la geoccerca</string>
+    <string name="help_detect_4_d">Cuánto (en metros) debes alejarte del sitio de aparcamiento antes de que AutoLock actúe. Menor = bloquea antes; mayor = menos falsos disparos.</string>
+
+    <string name="help_sec_timing">Tiempos</string>
+    <string name="help_timing_1_t">Periodo de gracia</string>
+    <string name="help_timing_1_d">Cuántos segundos espera AutoLock tras el disparador antes de bloquear. Es tu margen para volver a entrar o cancelar. Más corto = bloqueo más rápido; más largo = más margen de seguridad. Predeterminado: 45s.</string>
+
+    <string name="help_sec_diag">Diagnóstico — estadísticas de API</string>
+    <string name="help_diag_1_t">Sesión</string>
+    <string name="help_diag_1_d">Tu región, modo en vivo/demo, modo de comando, cuenta y vehículo seleccionado de un vistazo.</string>
+    <string name="help_diag_2_t">Límite de peticiones</string>
+    <string name="help_diag_2_d">BlueLink limita con qué frecuencia puedes enviar comandos. Si alcanzas el límite, esto muestra un enfriamiento para saber cuándo reintentar.</string>
+    <string name="help_diag_3_t">Totales</string>
+    <string name="help_diag_3_d">Total de llamadas de API, tasa de éxito, fallos y tiempo medio de respuesta.</string>
+    <string name="help_diag_4_t">Llamadas de API recientes</string>
+    <string name="help_diag_4_d">Cada llamada con su duración y resultado — útil para detectar peticiones lentas o fallidas.</string>
+    <string name="help_diag_5_t">Registro de actividad</string>
+    <string name="help_diag_5_d">Los mismos eventos legibles que se muestran en la pantalla de inicio.</string>
+
+    <string name="help_sec_perms">Permisos y por qué se necesitan</string>
+    <string name="help_perms_1_t">Bluetooth</string>
+    <string name="help_perms_1_d">Para detectar cuando tu teléfono se desconecta del coche — el disparador principal.</string>
+    <string name="help_perms_2_t">Ubicación (incl. en segundo plano)</string>
+    <string name="help_perms_2_d">Para la geoccerca opcional y para saber dónde estaba aparcado el coche. El acceso en segundo plano permite que funcione con la app cerrada.</string>
+    <string name="help_perms_3_t">Actividad física</string>
+    <string name="help_perms_3_d">Para la confirmación opcional conducir → caminar.</string>
+    <string name="help_perms_4_t">Notificaciones</string>
+    <string name="help_perms_4_d">Para mostrar la notificación continua de «bloqueando pronto» con un botón Cancelar, y el resultado.</string>
+
+    <string name="help_sec_signin">Solución de problemas de inicio de sesión (EU)</string>
+    <string name="help_signin_1_t">Inicio de sesión automático</string>
+    <string name="help_signin_1_d">Solo introduce tu correo, contraseña y PIN de 4 dígitos de BlueLink. AutoLock genera el token de acceso en tu dispositivo (sin interfaz, sin CAPTCHA) — nunca manejas un token.</string>
+    <string name="help_signin_2_t">Reglas de contraseña</string>
+    <string name="help_signin_2_d">Hyundai/Kia requieren de 8 a 20 caracteres con una mayúscula, una minúscula, un dígito y un carácter especial. El inicio de sesión falla si la contraseña queda fuera de este rango.</string>
+    <string name="help_signin_3_t">«Inicio de sesión rechazado»</string>
+    <string name="help_signin_3_d">Comprueba que el correo y la contraseña funcionan en la app oficial de Hyundai y vuelve a intentarlo.</string>
+    <string name="help_signin_4_t">Avanzado: token de actualización</string>
+    <string name="help_signin_4_d">Si ya generaste en otro sitio un token de actualización de 48 caracteres, pégalo en «Avanzado».</string>
+    <string name="help_signin_5_t">Sin vehículos tras iniciar sesión</string>
+    <string name="help_signin_5_d">Toca Recargar vehículos en Ajustes → Cuenta.</string>
+    <string name="help_signin_6_t">¿Prefieres sin cuenta?</string>
+    <string name="help_signin_6_d">Activa el modo demo para usar toda la app con un coche simulado.</string>
+
+    <string name="help_sec_reliab">Consejos de fiabilidad</string>
+    <string name="help_reliab_1_t">Optimización de batería</string>
+    <string name="help_reliab_1_d">Abre Ajustes → Mantener AutoLock activo → Ajustes de batería y permite a AutoLock un uso ilimitado en segundo plano para que el disparador funcione de forma fiable.</string>
+    <string name="help_reliab_2_t">Límites en segundo plano</string>
+    <string name="help_reliab_2_d">En Samsung/Xiaomi/Huawei/OnePlus, añade AutoLock a las «apps que nunca duermen» y desactiva cualquier opción de «restringir el segundo plano» (Ajustes → Info de la app).</string>
+    <string name="help_reliab_3_t">Mantenlo activado</string>
+    <string name="help_reliab_3_d">El interruptor principal debe estar activado. Tras un reinicio, el vigilante se reactiva automáticamente.</string>
+    <string name="help_reliab_4_t">Prueba primero</string>
+    <string name="help_reliab_4_d">Usa Simulación + Simular salida hasta que estés satisfecho, luego cambia a Armado.</string>
 </resources>

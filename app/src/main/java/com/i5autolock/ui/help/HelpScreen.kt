@@ -68,113 +68,113 @@ fun HelpScreen(onBack: () -> Unit) {
             )
 
             HelpSection(
-                "The lock flow, step by step",
+                stringResource(R.string.help_sec_flow),
                 listOf(
-                    "1. Trigger" to "Your phone disconnects from the car's Bluetooth — the strongest sign you just got out and walked away.",
-                    "2. Confirm" to "Optionally, activity recognition (driving → walking) and/or a geofence confirm you actually left, so a brief Bluetooth drop won't lock the car on you.",
-                    "3. Grace" to "A countdown starts (you set the length). Getting back in or tapping Cancel aborts it.",
-                    "4. Verify" to "AutoLock reads the car's live status and only continues if it's actually unlocked and the engine is off.",
-                    "5. Lock" to "It sends the lock command — or, in Dry run, just logs what it would have done.",
+                    stringResource(R.string.help_flow_1_t) to stringResource(R.string.help_flow_1_d),
+                    stringResource(R.string.help_flow_2_t) to stringResource(R.string.help_flow_2_d),
+                    stringResource(R.string.help_flow_3_t) to stringResource(R.string.help_flow_3_d),
+                    stringResource(R.string.help_flow_4_t) to stringResource(R.string.help_flow_4_d),
+                    stringResource(R.string.help_flow_5_t) to stringResource(R.string.help_flow_5_d),
                 ),
             )
 
             HelpSection(
-                "Home screen",
+                stringResource(R.string.help_sec_home),
                 listOf(
-                    "Master switch" to "Turns the whole watcher on or off. When off, nothing happens automatically.",
-                    "Status card" to "Shows the current state: Idle, Confirming, Locking in Ns, Locked ✓, Skipped, or an error.",
-                    "Simulate leaving" to "Runs the entire flow on demand so you can test it safely (especially with Dry run on).",
-                    "Cancel" to "Aborts an in-progress evaluation immediately.",
-                    "Recent activity" to "A live log of what AutoLock is doing and why.",
+                    stringResource(R.string.help_home_1_t) to stringResource(R.string.help_home_1_d),
+                    stringResource(R.string.help_home_2_t) to stringResource(R.string.help_home_2_d),
+                    stringResource(R.string.help_home_3_t) to stringResource(R.string.help_home_3_d),
+                    stringResource(R.string.help_home_4_t) to stringResource(R.string.help_home_4_d),
+                    stringResource(R.string.help_home_5_t) to stringResource(R.string.help_home_5_d),
                 ),
             )
 
             HelpSection(
-                "Safety",
+                stringResource(R.string.help_sec_safety),
                 listOf(
-                    "Demo mode" to "Uses a simulated car — no BlueLink account or real vehicle needed. Perfect for trying the app. Turn it off to use your real car.",
-                    "Dry run" to "The default and safest mode. Runs everything but NEVER sends a real lock command; it logs \"would have locked\". Use this until you trust the detection.",
-                    "Armed" to "Sends real lock commands to your car. Only switch to this once Dry run behaves the way you expect.",
-                    "Confirm before locking" to "Instead of locking automatically, AutoLock will ask you first (via a notification) before sending the command.",
+                    stringResource(R.string.help_safety_1_t) to stringResource(R.string.help_safety_1_d),
+                    stringResource(R.string.help_safety_2_t) to stringResource(R.string.help_safety_2_d),
+                    stringResource(R.string.help_safety_3_t) to stringResource(R.string.help_safety_3_d),
+                    stringResource(R.string.help_safety_4_t) to stringResource(R.string.help_safety_4_d),
                 ),
             )
 
             HelpSection(
-                "Account",
+                stringResource(R.string.help_sec_account),
                 listOf(
-                    "Region" to "Where your BlueLink account is registered. Europe (EU) uses a secure web sign-in to obtain a token; other regions use a direct login. EU is the primary supported region.",
-                    "Sign in" to "Opens Hyundai's real login page inside a locked-down, screenshot-blocked window. Your token is captured on-device and stored encrypted. AutoLock never sees your password.",
-                    "Reload vehicles" to "Fetches the cars on your account so you can pick one.",
-                    "Sign out" to "Deletes the stored session from the device.",
+                    stringResource(R.string.help_account_1_t) to stringResource(R.string.help_account_1_d),
+                    stringResource(R.string.help_account_2_t) to stringResource(R.string.help_account_2_d),
+                    stringResource(R.string.help_account_3_t) to stringResource(R.string.help_account_3_d),
+                    stringResource(R.string.help_account_4_t) to stringResource(R.string.help_account_4_d),
                 ),
             )
 
             HelpSection(
-                "Vehicle & Car Bluetooth",
+                stringResource(R.string.help_sec_vehbt),
                 listOf(
-                    "Vehicle" to "Pick the car AutoLock should lock. Load it from your account first.",
-                    "Car Bluetooth" to "Choose the paired Bluetooth device that means \"I'm in the car\" (your car's head unit / hands-free). Disconnecting from it is the primary trigger, so this must be set for automatic locking.",
-                    "Refresh paired devices" to "Re-scans your phone's paired Bluetooth devices if your car isn't listed yet.",
+                    stringResource(R.string.help_vehbt_1_t) to stringResource(R.string.help_vehbt_1_d),
+                    stringResource(R.string.help_vehbt_2_t) to stringResource(R.string.help_vehbt_2_d),
+                    stringResource(R.string.help_vehbt_3_t) to stringResource(R.string.help_vehbt_3_d),
                 ),
             )
 
             HelpSection(
-                "Detection",
+                stringResource(R.string.help_sec_detect),
                 listOf(
-                    "Bluetooth disconnect" to "The primary trigger. When your phone leaves the car's Bluetooth range, an evaluation begins. Recommended: on.",
-                    "Activity confirmation" to "Requires your phone to detect a driving → walking change before locking. Reduces false triggers (e.g. a passing radio glitch). Needs the Activity permission.",
-                    "Geofence confirmation" to "Requires you to physically move away from where the car is parked before locking. Needs location permission.",
-                    "Geofence radius" to "How far (in metres) you must move from the parked spot before AutoLock acts. Smaller = locks sooner; larger = fewer false triggers.",
+                    stringResource(R.string.help_detect_1_t) to stringResource(R.string.help_detect_1_d),
+                    stringResource(R.string.help_detect_2_t) to stringResource(R.string.help_detect_2_d),
+                    stringResource(R.string.help_detect_3_t) to stringResource(R.string.help_detect_3_d),
+                    stringResource(R.string.help_detect_4_t) to stringResource(R.string.help_detect_4_d),
                 ),
             )
 
             HelpSection(
-                "Timing",
+                stringResource(R.string.help_sec_timing),
                 listOf(
-                    "Grace period" to "How many seconds AutoLock waits after the trigger before it locks. This is your window to get back in or cancel. Shorter = quicker locking; longer = more safety margin. Default is 45s.",
+                    stringResource(R.string.help_timing_1_t) to stringResource(R.string.help_timing_1_d),
                 ),
             )
 
             HelpSection(
-                "Diagnostics — API statistics",
+                stringResource(R.string.help_sec_diag),
                 listOf(
-                    "Session" to "Your region, live/demo mode, command mode, account, and selected vehicle at a glance.",
-                    "Rate limiting" to "BlueLink limits how often you can send commands. If you hit the limit, this shows a cooldown so you know when to try again.",
-                    "Totals" to "Total API calls, success rate, failures, and average response time.",
-                    "Recent API calls" to "Every call with its duration and outcome — handy for spotting slow or failing requests.",
-                    "Activity log" to "The same human-readable events shown on the home screen.",
+                    stringResource(R.string.help_diag_1_t) to stringResource(R.string.help_diag_1_d),
+                    stringResource(R.string.help_diag_2_t) to stringResource(R.string.help_diag_2_d),
+                    stringResource(R.string.help_diag_3_t) to stringResource(R.string.help_diag_3_d),
+                    stringResource(R.string.help_diag_4_t) to stringResource(R.string.help_diag_4_d),
+                    stringResource(R.string.help_diag_5_t) to stringResource(R.string.help_diag_5_d),
                 ),
             )
 
             HelpSection(
-                "Permissions & why they're needed",
+                stringResource(R.string.help_sec_perms),
                 listOf(
-                    "Bluetooth" to "To detect when your phone disconnects from the car — the main trigger.",
-                    "Location (incl. background)" to "For the optional geofence, and to know where the car was parked. Background access lets it work when the app is closed.",
-                    "Physical activity" to "For the optional driving → walking confirmation.",
-                    "Notifications" to "To show the ongoing 'locking soon' notification with a Cancel button, and the result.",
+                    stringResource(R.string.help_perms_1_t) to stringResource(R.string.help_perms_1_d),
+                    stringResource(R.string.help_perms_2_t) to stringResource(R.string.help_perms_2_d),
+                    stringResource(R.string.help_perms_3_t) to stringResource(R.string.help_perms_3_d),
+                    stringResource(R.string.help_perms_4_t) to stringResource(R.string.help_perms_4_d),
                 ),
             )
 
             HelpSection(
-                "Sign-in troubleshooting (EU)",
+                stringResource(R.string.help_sec_signin),
                 listOf(
-                    "Automatic sign-in" to "Just enter your BlueLink email, password and 4-digit PIN. AutoLock generates the access token on your device (headless, no CAPTCHA) — you never handle a token.",
-                    "Password rules" to "Hyundai/Kia require 8–20 characters with an uppercase letter, a lowercase letter, a digit, and a special character. Sign-in fails if the password is outside this range.",
-                    "\"Sign-in rejected\"" to "Double-check the email and password work in the official Hyundai app, then try again.",
-                    "Advanced: refresh token" to "If you already generated a 48-char refresh token elsewhere, paste it under \"Advanced\" instead.",
-                    "No vehicles after login" to "Tap Reload vehicles in Settings → Account.",
-                    "Prefer no account?" to "Turn on Demo mode to use the whole app with a simulated car.",
+                    stringResource(R.string.help_signin_1_t) to stringResource(R.string.help_signin_1_d),
+                    stringResource(R.string.help_signin_2_t) to stringResource(R.string.help_signin_2_d),
+                    stringResource(R.string.help_signin_3_t) to stringResource(R.string.help_signin_3_d),
+                    stringResource(R.string.help_signin_4_t) to stringResource(R.string.help_signin_4_d),
+                    stringResource(R.string.help_signin_5_t) to stringResource(R.string.help_signin_5_d),
+                    stringResource(R.string.help_signin_6_t) to stringResource(R.string.help_signin_6_d),
                 ),
             )
 
             HelpSection(
-                "Reliability tips",
+                stringResource(R.string.help_sec_reliab),
                 listOf(
-                    "Battery optimization" to "Open Settings → Keep AutoLock running → Battery settings and allow AutoLock unrestricted background use so the trigger fires reliably.",
-                    "Background limits" to "On Samsung/Xiaomi/Huawei/OnePlus, add AutoLock to \"never sleeping apps\" and disable any \"restrict background\" option (Settings → App info).",
-                    "Keep it enabled" to "The master switch must be on. After a reboot the watcher re-activates automatically.",
-                    "Test first" to "Use Dry run + Simulate leaving until you're happy, then switch to Armed.",
+                    stringResource(R.string.help_reliab_1_t) to stringResource(R.string.help_reliab_1_d),
+                    stringResource(R.string.help_reliab_2_t) to stringResource(R.string.help_reliab_2_d),
+                    stringResource(R.string.help_reliab_3_t) to stringResource(R.string.help_reliab_3_d),
+                    stringResource(R.string.help_reliab_4_t) to stringResource(R.string.help_reliab_4_d),
                 ),
             )
         }

@@ -46,6 +46,8 @@ class AutoLockService : Service() {
     private var showLockNow: Boolean = true
     private var pinNotification: Boolean = true
     private var showStatus: Boolean = true
+    // When false, the ongoing notification uses a minimal channel so no status-bar icon shows.
+    private var showNotificationIcon: Boolean = true
     // Last-known vehicle status line, kept so the "watching" notification can still show it.
     private var lastSummary: String? = null
     private var currentDetection: DetectionState = DetectionState.IDLE
@@ -61,6 +63,7 @@ class AutoLockService : Service() {
         // so the "watching" notification always reflects the last-known vehicle status.
         scope.launch {
             showStatus = settingsRepo.settings.first().showStatusInNotification
+            showNotificationIcon = settingsRepo.settings.first().showNotificationIcon
             statusCache.cached.collect { c ->
                 lastSummary = c.summary.ifBlank { null }
                 // Refresh the watching notification while resting so the new status shows.
@@ -80,6 +83,7 @@ class AutoLockService : Service() {
                 showLockNow = s.showLockNowAction
                 pinNotification = s.pinNotification
                 showStatus = s.showStatusInNotification
+                showNotificationIcon = s.showNotificationIcon
                 lastSummary = statusCache.cached.first().summary.ifBlank { null }
                 if (!s.enabled) {
                     watchMode = false
@@ -113,6 +117,7 @@ class AutoLockService : Service() {
                     showLockNow = s.showLockNowAction
                     pinNotification = s.pinNotification
                     showStatus = s.showStatusInNotification
+                    showNotificationIcon = s.showNotificationIcon
                     lastSummary = statusCache.cached.first().summary.ifBlank { null }
                     if (s.useActivityRecognition) activityRecognition.start() else activityRecognition.stop()
                     startForegroundWatch()
@@ -137,6 +142,7 @@ class AutoLockService : Service() {
             val s = settingsRepo.settings.first()
             showLockNow = s.showLockNowAction
             showStatus = s.showStatusInNotification
+            showNotificationIcon = s.showNotificationIcon
             // Soft "listening" chime when an evaluation begins.
             if (s.soundOnLock && intent.action != ACTION_ALREADY_RUNNING) {
                 runCatching { com.i5autolock.data.sound.EvChime.playNotify() }
@@ -197,7 +203,7 @@ class AutoLockService : Service() {
     }
 
     private fun startForegroundCompat(state: DetectionState, grace: Int, summary: String? = null) {
-        val notification = AutoLockNotification.build(this, state, grace, summary, showLockNow)
+        val notification = AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId())
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         } else 0
@@ -206,13 +212,15 @@ class AutoLockService : Service() {
 
     private fun startForegroundWatch() {
         val summary = if (showStatus) lastSummary else null
-        val notification = AutoLockNotification.buildWatching(this, statusSummary = summary, pinned = pinNotification)
+        val notification = AutoLockNotification.buildWatching(this, statusSummary = summary, pinned = pinNotification, channelId = channelId())
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         } else 0
         ServiceCompat.startForeground(this, AutoLockNotification.NOTIFICATION_ID, notification, type)
     }
-
+    // Hiding the status-bar icon = post on the minimal-importance channel (still shown in the shade).
+    private fun channelId(): String =
+        if (showNotificationIcon) com.i5autolock.AutoLockApp.CHANNEL_ID else com.i5autolock.AutoLockApp.CHANNEL_ID_MINIMAL
     private fun updateNotification(state: DetectionState, grace: Int, summary: String?) {
         when {
             // Resting state while watching → the persistent "watching" notification.
@@ -223,7 +231,7 @@ class AutoLockService : Service() {
                 if (!canPostNotifications()) return
                 try {
                     NotificationManagerCompat.from(this)
-                        .notify(AutoLockNotification.NOTIFICATION_ID, AutoLockNotification.build(this, state, grace, summary, showLockNow))
+                        .notify(AutoLockNotification.NOTIFICATION_ID, AutoLockNotification.build(this, state, grace, summary, showLockNow, channelId()))
                 } catch (_: SecurityException) {
                     // Notifications permission revoked between check and post — ignore.
                 }

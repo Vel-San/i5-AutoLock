@@ -17,20 +17,37 @@ object NotificationChannels {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         // Only recreate if the badge preference actually differs (avoids clobbering the live channel).
         val existing = manager.getNotificationChannel(AutoLockApp.CHANNEL_ID)
-        if (existing != null && existing.canShowBadge() == showBadge) return
-        if (existing != null) runCatching { manager.deleteNotificationChannel(AutoLockApp.CHANNEL_ID) }
-        val channel = NotificationChannel(
-            AutoLockApp.CHANNEL_ID,
-            context.getString(R.string.notification_channel_name),
-            NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply {
-            description = context.getString(R.string.notification_channel_desc)
-            setShowBadge(showBadge)
-            // AutoLock plays its own chime; the channel stays silent.
-            setSound(null, null)
-            enableVibration(false)
+        if (existing == null || existing.canShowBadge() != showBadge) {
+            if (existing != null) runCatching { manager.deleteNotificationChannel(AutoLockApp.CHANNEL_ID) }
+            val channel = NotificationChannel(
+                AutoLockApp.CHANNEL_ID,
+                context.getString(R.string.notification_channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = context.getString(R.string.notification_channel_desc)
+                setShowBadge(showBadge)
+                // AutoLock plays its own chime; the channel stays silent.
+                setSound(null, null)
+                enableVibration(false)
+            }
+            manager.createNotificationChannel(channel)
         }
-        manager.createNotificationChannel(channel)
+
+        // A parallel, minimal-importance channel: same notification, but no status-bar icon.
+        if (manager.getNotificationChannel(AutoLockApp.CHANNEL_ID_MINIMAL) == null) {
+            val minimal = NotificationChannel(
+                AutoLockApp.CHANNEL_ID_MINIMAL,
+                context.getString(R.string.notification_channel_min_name),
+                NotificationManager.IMPORTANCE_MIN,
+            ).apply {
+                description = context.getString(R.string.notification_channel_min_desc)
+                setShowBadge(false)
+                setSound(null, null)
+                enableVibration(false)
+            }
+            manager.createNotificationChannel(minimal)
+        }
+
         // Clean up superseded channel ids.
         runCatching { manager.deleteNotificationChannel("autolock_activity") }
         runCatching { manager.deleteNotificationChannel("autolock_activity_v2") }

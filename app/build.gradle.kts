@@ -15,6 +15,14 @@ val localProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+// Release signing is read from env vars (CI) or local.properties, never committed.
+// Falls back to unsigned when absent, so open-source builds still work with no keystore.
+fun secret(key: String): String? =
+    System.getenv(key)?.takeIf { it.isNotBlank() } ?: localProps.getProperty(key)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = secret("RELEASE_STORE_FILE")?.let { rootProject.file(it) }
+val hasReleaseSigning = releaseStoreFile?.exists() == true
+
 android {
     namespace = "com.i5autolock"
     compileSdk = 35
@@ -24,10 +32,21 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = releaseStoreFile
+                storePassword = secret("RELEASE_STORE_PASSWORD")
+                keyAlias = secret("RELEASE_KEY_ALIAS")
+                keyPassword = secret("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -42,6 +61,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -67,7 +87,17 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/changelog"))
 }
+
+// Bundle the root CHANGELOG.md as an app asset so the in-app "What's new" screen can
+// render it. Keeps CHANGELOG.md the single source of truth (no committed copy under src).
+val syncChangelogAsset by tasks.registering(Copy::class) {
+    from(rootProject.file("CHANGELOG.md"))
+    into(layout.buildDirectory.dir("generated/changelog"))
+}
+tasks.named("preBuild").configure { dependsOn(syncChangelogAsset) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)

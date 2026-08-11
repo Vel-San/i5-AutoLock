@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.i5autolock.AutoLockApp
 import com.i5autolock.MainActivity
 import com.i5autolock.R
@@ -16,7 +17,12 @@ object AutoLockNotification {
     const val NOTIFICATION_ID = 4201
 
     /** Persistent "watching" notification shown whenever AutoLock is enabled. */
-    fun buildWatching(context: Context, statusSummary: String? = null, pinned: Boolean = true): Notification {
+    fun buildWatching(
+        context: Context,
+        statusSummary: String? = null,
+        pinned: Boolean = true,
+        channelId: String = AutoLockApp.CHANNEL_ID,
+    ): Notification {
         val contentIntent = PendingIntent.getActivity(
             context,
             0,
@@ -39,8 +45,9 @@ object AutoLockNotification {
         // Show the live vehicle status as the main line when we have it; fall back otherwise.
         val text = statusSummary?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.notif_watching_body)
-        return NotificationCompat.Builder(context, AutoLockApp.CHANNEL_ID)
+        return NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_stat_autolock)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
             .setContentTitle(context.getString(R.string.notif_watching_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -59,6 +66,7 @@ object AutoLockNotification {
         graceRemaining: Int,
         statusSummary: String? = null,
         showLockNow: Boolean = false,
+        channelId: String = AutoLockApp.CHANNEL_ID,
     ): Notification {
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -84,8 +92,9 @@ object AutoLockNotification {
         // "Lock now" is useful while we're still waiting (confirming / grace / awaiting confirm).
         val canLockNow = showLockNow && waiting
 
-        val builder = NotificationCompat.Builder(context, AutoLockApp.CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_stat_autolock)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

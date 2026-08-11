@@ -63,6 +63,7 @@ fun SettingsScreen(
     onLogin: () -> Unit,
     onStats: () -> Unit,
     onHelp: () -> Unit,
+    onAbout: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -383,6 +384,12 @@ fun SettingsScreen(
                     onCheckedChange = viewModel::setShowAppBadge,
                 )
                 RowToggle(
+                    title = stringResource(R.string.set_notif_icon_title),
+                    subtitle = stringResource(R.string.set_notif_icon_sub),
+                    checked = settings.showNotificationIcon,
+                    onCheckedChange = viewModel::setShowNotificationIcon,
+                )
+                RowToggle(
                     title = stringResource(R.string.set_locknow_title),
                     subtitle = stringResource(R.string.set_locknow_sub),
                     checked = settings.showLockNowAction,
@@ -402,7 +409,7 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(field.label)
+                            Text(stringResource(field.labelRes))
                             Switch(
                                 checked = field in settings.notificationFields,
                                 onCheckedChange = { viewModel.toggleNotificationField(field, it) },
@@ -471,6 +478,17 @@ fun SettingsScreen(
                 )
                 OutlinedButton(onClick = onHelp, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.set_open_help))
+                }
+            }
+
+            // About.
+            Section(stringResource(R.string.sec_about)) {
+                Text(
+                    stringResource(R.string.set_about_intro),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.set_open_about))
                 }
             }
         }

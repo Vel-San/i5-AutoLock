@@ -207,7 +207,7 @@ class HomeViewModel @Inject constructor(
                     )
                 }
                 if (low) merged.twelveVoltPercent?.let { _notice.value = "12V battery low ($it%). Consider charging or driving soon." }
-                statusCache.saveStatus(merged, StatusSummary.build(merged, s.notificationFields))
+                statusCache.saveStatus(merged, StatusSummary.build(merged, s.notificationFields, StatusSummary.Labels.from(appContext)))
             }
             .onFailure { e ->
                 // Preserve the visible status; only report the error.

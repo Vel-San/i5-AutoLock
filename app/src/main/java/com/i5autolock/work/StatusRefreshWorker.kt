@@ -41,7 +41,7 @@ class StatusRefreshWorker @AssistedInject constructor(
         return runCatching { client.status(vehicleId, forceRefresh = false) }
             .fold(
                 onSuccess = {
-                    statusCache.saveStatus(it, StatusSummary.build(it, s.notificationFields))
+                    statusCache.saveStatus(it, StatusSummary.build(it, s.notificationFields, StatusSummary.Labels.from(applicationContext)))
                     Result.success()
                 },
                 onFailure = { Result.retry() },

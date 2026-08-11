@@ -46,5 +46,7 @@ class AutoLockApp : Application(), Configuration.Provider {
 
     companion object {
         const val CHANNEL_ID = "autolock_activity_v4"
+        // Minimal-importance channel used when the user hides the status-bar icon.
+        const val CHANNEL_ID_MINIMAL = "autolock_activity_min_v1"
     }
 }

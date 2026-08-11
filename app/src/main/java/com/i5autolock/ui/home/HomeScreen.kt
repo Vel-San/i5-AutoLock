@@ -243,15 +243,20 @@ fun HomeScreen(
                                 )
                             }
                             if (settings.isConfigured || settings.demoMode) {
+                                val alreadyLocked = vehicleStatus.status?.lockState == LockState.LOCKED
                                 Button(
                                     onClick = { showLockDialog = true },
                                     modifier = Modifier.fillMaxWidth().height(52.dp),
                                     shape = RoundedCornerShape(18.dp),
+                                    enabled = !alreadyLocked,
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
                                 ) {
                                     Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(8.dp))
-                                    Text(stringResource(R.string.action_lock_now), fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        if (alreadyLocked) stringResource(R.string.action_already_locked) else stringResource(R.string.action_lock_now),
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
                                 }
                             }
                         }

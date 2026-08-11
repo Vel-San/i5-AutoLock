@@ -2,6 +2,8 @@
     <string name="app_name">AutoLock</string>
     <string name="notification_channel_name">Auto-lock activity</string>
     <string name="notification_channel_desc">Shows when AutoLock is watching for you leaving the car.</string>
+    <string name="notification_channel_min_name">Auto-lock activity (no status-bar icon)</string>
+    <string name="notification_channel_min_desc">Same as above, but kept out of the status bar.</string>
 
     <!-- Onboarding -->
     <string name="onboarding_skip">Skip</string>
@@ -40,6 +42,23 @@
     <string name="notif_default_title">AutoLock</string>
     <string name="notif_default_body">Watching for you leaving the car.</string>
 
+    <!-- Notification content fields (Settings toggles + status summary line) -->
+    <string name="notif_field_lock_state">Lock state</string>
+    <string name="notif_field_ev_battery">Drive battery %</string>
+    <string name="notif_field_range">Range</string>
+    <string name="notif_field_engine">Engine</string>
+    <string name="notif_field_twelve_volt">12V battery %</string>
+    <string name="notif_field_climate">Climate</string>
+    <string name="summary_locked">Locked</string>
+    <string name="summary_unlocked">Unlocked</string>
+    <string name="summary_lock_unknown">Lock: ?</string>
+    <string name="summary_engine_on">Engine on</string>
+    <string name="summary_engine_off">Engine off</string>
+    <string name="summary_climate_on">Climate on</string>
+    <string name="summary_climate_off">Climate off</string>
+    <string name="summary_twelve_volt">12V</string>
+    <string name="summary_range_unit">km</string>
+
     <!-- Permissions -->
     <string name="perm_title">AutoLock needs a few permissions</string>
     <string name="perm_body">• Bluetooth: to notice when you leave the car\n• Location: to confirm you\'ve walked away\n• Activity: to tell driving from walking\n• Notifications: to show locking status</string>
@@ -51,6 +70,7 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_sign_in">Sign in</string>
     <string name="action_lock_now">Lock now</string>
+    <string name="action_already_locked">Already locked</string>
     <string name="badge_demo">DEMO</string>
     <string name="badge_dry_run">DRY RUN</string>
     <string name="badge_armed">ARMED</string>
@@ -161,6 +181,8 @@
     <string name="set_low_volt_threshold">Warn below: %1$d%%</string>
     <string name="set_badge_title">Show app badge</string>
     <string name="set_badge_sub">Show a dot/count on the app icon. Off by default since the notification is already there.</string>
+    <string name="set_notif_icon_title">Show status-bar icon</string>
+    <string name="set_notif_icon_sub">Show the AutoLock icon in the status bar. When off, the notification stays in the shade only.</string>
     <string name="set_auto_refresh_open_title">Auto-refresh on open</string>
     <string name="set_auto_refresh_open_sub">Fetch the latest vehicle status when you open the app.</string>
     <string name="set_bg_check_title">Background auto-check</string>
@@ -200,6 +222,19 @@
     <string name="set_open_stats">Open API statistics</string>
     <string name="set_help_intro">New here? The help page explains every setting and how automatic locking works.</string>
     <string name="set_open_help">Open help &amp; tutorial</string>
+    <string name="sec_about">About</string>
+    <string name="set_about_intro">App version, release notes, and project links.</string>
+    <string name="set_open_about">About &amp; changelog</string>
+    <string name="about_title">About</string>
+    <string name="about_hero_eyebrow">AutoLock</string>
+    <string name="about_hero_subtitle">Version, release notes, and links.</string>
+    <string name="about_version">Version %1$s (build %2$d)</string>
+    <string name="about_whats_new">What\'s new</string>
+    <string name="about_changelog_unavailable">Release notes are unavailable in this build.</string>
+    <string name="about_open_source">Open source</string>
+    <string name="about_open_source_body">AutoLock is open source. The full code, issues, and releases live on the project page.</string>
+    <string name="about_view_project">View project</string>
+    <string name="about_view_licenses">Open-source licenses</string>
     <string name="schedule_enabled_title">Only during set hours</string>
     <string name="schedule_enabled_sub">AutoLock stays idle outside this time window.</string>
     <string name="schedule_from">From %1$s</string>
@@ -264,4 +299,117 @@
     <string name="help_hero_eyebrow">Guide</string>
     <string name="help_hero_title">How it works</string>
     <string name="help_hero_body">AutoLock does one job: it notices when you\'ve left your (unlocked) car and locks it for you. This page explains every setting so you can tune it with confidence.</string>
+
+    <!-- Help sections -->
+    <string name="help_sec_flow">The lock flow, step by step</string>
+    <string name="help_flow_1_t">1. Trigger</string>
+    <string name="help_flow_1_d">Your phone disconnects from the car\'s Bluetooth — the strongest sign you just got out and walked away.</string>
+    <string name="help_flow_2_t">2. Confirm</string>
+    <string name="help_flow_2_d">Optionally, activity recognition (driving → walking) and/or a geofence confirm you actually left, so a brief Bluetooth drop won\'t lock the car on you.</string>
+    <string name="help_flow_3_t">3. Grace</string>
+    <string name="help_flow_3_d">A countdown starts (you set the length). Getting back in or tapping Cancel aborts it.</string>
+    <string name="help_flow_4_t">4. Verify</string>
+    <string name="help_flow_4_d">AutoLock reads the car\'s live status and only continues if it\'s actually unlocked and the engine is off.</string>
+    <string name="help_flow_5_t">5. Lock</string>
+    <string name="help_flow_5_d">It sends the lock command — or, in Dry run, just logs what it would have done.</string>
+
+    <string name="help_sec_home">Home screen</string>
+    <string name="help_home_1_t">Master switch</string>
+    <string name="help_home_1_d">Turns the whole watcher on or off. When off, nothing happens automatically.</string>
+    <string name="help_home_2_t">Status card</string>
+    <string name="help_home_2_d">Shows the current state: Idle, Confirming, Locking in Ns, Locked ✓, Skipped, or an error.</string>
+    <string name="help_home_3_t">Simulate leaving</string>
+    <string name="help_home_3_d">Runs the entire flow on demand so you can test it safely (especially with Dry run on).</string>
+    <string name="help_home_4_t">Cancel</string>
+    <string name="help_home_4_d">Aborts an in-progress evaluation immediately.</string>
+    <string name="help_home_5_t">Recent activity</string>
+    <string name="help_home_5_d">A live log of what AutoLock is doing and why.</string>
+
+    <string name="help_sec_safety">Safety</string>
+    <string name="help_safety_1_t">Demo mode</string>
+    <string name="help_safety_1_d">Uses a simulated car — no BlueLink account or real vehicle needed. Perfect for trying the app. Turn it off to use your real car.</string>
+    <string name="help_safety_2_t">Dry run</string>
+    <string name="help_safety_2_d">The default and safest mode. Runs everything but NEVER sends a real lock command; it logs \"would have locked\". Use this until you trust the detection.</string>
+    <string name="help_safety_3_t">Armed</string>
+    <string name="help_safety_3_d">Sends real lock commands to your car. Only switch to this once Dry run behaves the way you expect.</string>
+    <string name="help_safety_4_t">Confirm before locking</string>
+    <string name="help_safety_4_d">Instead of locking automatically, AutoLock will ask you first (via a notification) before sending the command.</string>
+
+    <string name="help_sec_account">Account</string>
+    <string name="help_account_1_t">Region</string>
+    <string name="help_account_1_d">Where your BlueLink account is registered. Europe (EU) uses a secure web sign-in to obtain a token; other regions use a direct login. EU is the primary supported region.</string>
+    <string name="help_account_2_t">Sign in</string>
+    <string name="help_account_2_d">Opens Hyundai\'s real login page inside a locked-down, screenshot-blocked window. Your token is captured on-device and stored encrypted. AutoLock never sees your password.</string>
+    <string name="help_account_3_t">Reload vehicles</string>
+    <string name="help_account_3_d">Fetches the cars on your account so you can pick one.</string>
+    <string name="help_account_4_t">Sign out</string>
+    <string name="help_account_4_d">Deletes the stored session from the device.</string>
+
+    <string name="help_sec_vehbt">Vehicle &amp; Car Bluetooth</string>
+    <string name="help_vehbt_1_t">Vehicle</string>
+    <string name="help_vehbt_1_d">Pick the car AutoLock should lock. Load it from your account first.</string>
+    <string name="help_vehbt_2_t">Car Bluetooth</string>
+    <string name="help_vehbt_2_d">Choose the paired Bluetooth device that means \"I\'m in the car\" (your car\'s head unit / hands-free). Disconnecting from it is the primary trigger, so this must be set for automatic locking.</string>
+    <string name="help_vehbt_3_t">Refresh paired devices</string>
+    <string name="help_vehbt_3_d">Re-scans your phone\'s paired Bluetooth devices if your car isn\'t listed yet.</string>
+
+    <string name="help_sec_detect">Detection</string>
+    <string name="help_detect_1_t">Bluetooth disconnect</string>
+    <string name="help_detect_1_d">The primary trigger. When your phone leaves the car\'s Bluetooth range, an evaluation begins. Recommended: on.</string>
+    <string name="help_detect_2_t">Activity confirmation</string>
+    <string name="help_detect_2_d">Requires your phone to detect a driving → walking change before locking. Reduces false triggers (e.g. a passing radio glitch). Needs the Activity permission.</string>
+    <string name="help_detect_3_t">Geofence confirmation</string>
+    <string name="help_detect_3_d">Requires you to physically move away from where the car is parked before locking. Needs location permission.</string>
+    <string name="help_detect_4_t">Geofence radius</string>
+    <string name="help_detect_4_d">How far (in metres) you must move from the parked spot before AutoLock acts. Smaller = locks sooner; larger = fewer false triggers.</string>
+
+    <string name="help_sec_timing">Timing</string>
+    <string name="help_timing_1_t">Grace period</string>
+    <string name="help_timing_1_d">How many seconds AutoLock waits after the trigger before it locks. This is your window to get back in or cancel. Shorter = quicker locking; longer = more safety margin. Default is 45s.</string>
+
+    <string name="help_sec_diag">Diagnostics — API statistics</string>
+    <string name="help_diag_1_t">Session</string>
+    <string name="help_diag_1_d">Your region, live/demo mode, command mode, account, and selected vehicle at a glance.</string>
+    <string name="help_diag_2_t">Rate limiting</string>
+    <string name="help_diag_2_d">BlueLink limits how often you can send commands. If you hit the limit, this shows a cooldown so you know when to try again.</string>
+    <string name="help_diag_3_t">Totals</string>
+    <string name="help_diag_3_d">Total API calls, success rate, failures, and average response time.</string>
+    <string name="help_diag_4_t">Recent API calls</string>
+    <string name="help_diag_4_d">Every call with its duration and outcome — handy for spotting slow or failing requests.</string>
+    <string name="help_diag_5_t">Activity log</string>
+    <string name="help_diag_5_d">The same human-readable events shown on the home screen.</string>
+
+    <string name="help_sec_perms">Permissions &amp; why they\'re needed</string>
+    <string name="help_perms_1_t">Bluetooth</string>
+    <string name="help_perms_1_d">To detect when your phone disconnects from the car — the main trigger.</string>
+    <string name="help_perms_2_t">Location (incl. background)</string>
+    <string name="help_perms_2_d">For the optional geofence, and to know where the car was parked. Background access lets it work when the app is closed.</string>
+    <string name="help_perms_3_t">Physical activity</string>
+    <string name="help_perms_3_d">For the optional driving → walking confirmation.</string>
+    <string name="help_perms_4_t">Notifications</string>
+    <string name="help_perms_4_d">To show the ongoing \'locking soon\' notification with a Cancel button, and the result.</string>
+
+    <string name="help_sec_signin">Sign-in troubleshooting (EU)</string>
+    <string name="help_signin_1_t">Automatic sign-in</string>
+    <string name="help_signin_1_d">Just enter your BlueLink email, password and 4-digit PIN. AutoLock generates the access token on your device (headless, no CAPTCHA) — you never handle a token.</string>
+    <string name="help_signin_2_t">Password rules</string>
+    <string name="help_signin_2_d">Hyundai/Kia require 8–20 characters with an uppercase letter, a lowercase letter, a digit, and a special character. Sign-in fails if the password is outside this range.</string>
+    <string name="help_signin_3_t">\"Sign-in rejected\"</string>
+    <string name="help_signin_3_d">Double-check the email and password work in the official Hyundai app, then try again.</string>
+    <string name="help_signin_4_t">Advanced: refresh token</string>
+    <string name="help_signin_4_d">If you already generated a 48-char refresh token elsewhere, paste it under \"Advanced\" instead.</string>
+    <string name="help_signin_5_t">No vehicles after login</string>
+    <string name="help_signin_5_d">Tap Reload vehicles in Settings → Account.</string>
+    <string name="help_signin_6_t">Prefer no account?</string>
+    <string name="help_signin_6_d">Turn on Demo mode to use the whole app with a simulated car.</string>
+
+    <string name="help_sec_reliab">Reliability tips</string>
+    <string name="help_reliab_1_t">Battery optimization</string>
+    <string name="help_reliab_1_d">Open Settings → Keep AutoLock running → Battery settings and allow AutoLock unrestricted background use so the trigger fires reliably.</string>
+    <string name="help_reliab_2_t">Background limits</string>
+    <string name="help_reliab_2_d">On Samsung/Xiaomi/Huawei/OnePlus, add AutoLock to \"never sleeping apps\" and disable any \"restrict background\" option (Settings → App info).</string>
+    <string name="help_reliab_3_t">Keep it enabled</string>
+    <string name="help_reliab_3_d">The master switch must be on. After a reboot the watcher re-activates automatically.</string>
+    <string name="help_reliab_4_t">Test first</string>
+    <string name="help_reliab_4_d">Use Dry run + Simulate leaving until you\'re happy, then switch to Armed.</string>
 </resources>

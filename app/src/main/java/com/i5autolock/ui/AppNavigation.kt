@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.i5autolock.ui.about.AboutScreen
 import com.i5autolock.ui.help.HelpScreen
 import com.i5autolock.ui.home.HomeScreen
 import com.i5autolock.ui.login.LoginScreen
@@ -22,6 +23,7 @@ object Routes {
     const val LOGIN = "login"
     const val STATS = "stats"
     const val HELP = "help"
+    const val ABOUT = "about"
 }
 
 @Composable
@@ -52,6 +54,7 @@ private fun AppNavHost(navController: NavHostController) {
                 onLogin = { navController.navigate(Routes.LOGIN) },
                 onStats = { navController.navigate(Routes.STATS) },
                 onHelp = { navController.navigate(Routes.HELP) },
+                onAbout = { navController.navigate(Routes.ABOUT) },
             )
         }
         composable(Routes.STATS) {
@@ -59,6 +62,9 @@ private fun AppNavHost(navController: NavHostController) {
         }
         composable(Routes.HELP) {
             HelpScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.ABOUT) {
+            AboutScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.LOGIN) {
             LoginScreen(

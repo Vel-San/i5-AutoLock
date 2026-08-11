@@ -42,6 +42,7 @@ class SettingsRepository @Inject constructor(
         val LOW_VOLT_ALERT = booleanPreferencesKey("low_volt_alert")
         val LOW_VOLT_THRESHOLD = intPreferencesKey("low_volt_threshold")
         val SHOW_APP_BADGE = booleanPreferencesKey("show_app_badge")
+        val SHOW_NOTIF_ICON = booleanPreferencesKey("show_notif_icon")
         val HAPTIC_ON_LOCK = booleanPreferencesKey("haptic_on_lock")
         val SOUND_ON_LOCK = booleanPreferencesKey("sound_on_lock")
         val REMEMBER_PARKED = booleanPreferencesKey("remember_parked")
@@ -89,6 +90,7 @@ class SettingsRepository @Inject constructor(
         lowVoltageAlert = this[Keys.LOW_VOLT_ALERT] ?: true,
         lowVoltageThreshold = this[Keys.LOW_VOLT_THRESHOLD] ?: 40,
         showAppBadge = this[Keys.SHOW_APP_BADGE] ?: false,
+        showNotificationIcon = this[Keys.SHOW_NOTIF_ICON] ?: true,
         hapticOnLock = this[Keys.HAPTIC_ON_LOCK] ?: true,
         soundOnLock = this[Keys.SOUND_ON_LOCK] ?: false,
         rememberParkedLocation = this[Keys.REMEMBER_PARKED] ?: false,
@@ -137,6 +139,7 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.LOW_VOLT_ALERT] = next.lowVoltageAlert
             prefs[Keys.LOW_VOLT_THRESHOLD] = next.lowVoltageThreshold
             prefs[Keys.SHOW_APP_BADGE] = next.showAppBadge
+            prefs[Keys.SHOW_NOTIF_ICON] = next.showNotificationIcon
             prefs[Keys.HAPTIC_ON_LOCK] = next.hapticOnLock
             prefs[Keys.SOUND_ON_LOCK] = next.soundOnLock
             prefs[Keys.REMEMBER_PARKED] = next.rememberParkedLocation

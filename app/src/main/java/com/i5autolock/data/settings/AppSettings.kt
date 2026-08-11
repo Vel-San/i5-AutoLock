@@ -1,5 +1,7 @@
 package com.i5autolock.data.settings
 
+import androidx.annotation.StringRes
+import com.i5autolock.R
 import com.i5autolock.data.bluelink.Region
 
 /** Whether AutoLock is allowed to actually send lock commands, or just simulate. */
@@ -17,13 +19,13 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 data class KnownVehicle(val id: String, val nickname: String, val model: String)
 
 /** Pieces of vehicle info the user can show/hide in the ongoing notification. */
-enum class NotificationField(val label: String) {
-    LOCK_STATE("Lock state"),
-    EV_BATTERY("Drive battery %"),
-    RANGE("Range"),
-    ENGINE("Engine"),
-    TWELVE_VOLT("12V battery %"),
-    CLIMATE("Climate"),
+enum class NotificationField(@StringRes val labelRes: Int) {
+    LOCK_STATE(R.string.notif_field_lock_state),
+    EV_BATTERY(R.string.notif_field_ev_battery),
+    RANGE(R.string.notif_field_range),
+    ENGINE(R.string.notif_field_engine),
+    TWELVE_VOLT(R.string.notif_field_twelve_volt),
+    CLIMATE(R.string.notif_field_climate),
 }
 
 /** User-tunable configuration. Persisted via DataStore. */
@@ -65,6 +67,10 @@ data class AppSettings(
 
     // Show a launcher badge for AutoLock notifications (off by default; the notification suffices).
     val showAppBadge: Boolean = false,
+
+    // Show the AutoLock icon in the status bar. When off, the ongoing notification is minimised
+    // (still visible in the shade) so no icon sits in the status bar.
+    val showNotificationIcon: Boolean = true,
 
     // Optional active-hours schedule (minutes from midnight). Supports overnight ranges.
     val scheduleEnabled: Boolean = false,

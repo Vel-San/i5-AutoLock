@@ -6,3 +6,9 @@
 
 # Optional: pre-fill a region for quicker testing (EU, US, CA, AU).
 # autolock.defaultRegion=EU
+
+# Optional: release signing (never commit local.properties or the keystore).
+# RELEASE_STORE_FILE=release.keystore
+# RELEASE_STORE_PASSWORD=...
+# RELEASE_KEY_ALIAS=...
+# RELEASE_KEY_PASSWORD=...

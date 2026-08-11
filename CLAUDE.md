@@ -149,9 +149,11 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   more battery-friendly for long idle periods.
 - US/CA/AU: routed to `UnsupportedRegionClient` (fails clearly) until real region endpoints/clients are
   implemented — the architecture routes by region in `BlueLinkProvider`.
-- Localization: all interactive screens (Home, Settings, Login, Stats, Permissions, Onboarding) +
-  notifications are in `res/values/strings.xml` with a full `values-es`. Only the Help screen's long-form
-  tutorial *body* paragraphs remain inline English (its chrome/hero are localized).
+- Localization: the whole UI — including the Help screen tutorial body, the `NotificationField`
+  labels (`labelRes`) and the `StatusSummary` notification data line (`StatusSummary.Labels.from(ctx)`) —
+  is externalized to `res/values/strings.xml` (single source, 379 strings) with **complete** translations
+  in `values-es`, `values-de`, `values-nl`, `values-fr`. Only pure-domain `ActivityLog` diagnostic
+  messages stay English (no `Context` in the domain layer). Adding a language = drop a new `values-xx`.
 - EU endpoint/stamp values need live verification against the reference projects.
 
 ## 9. Changelog (append notable changes)
@@ -404,5 +406,54 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
     injects `SecureStore`; `StatsScreen.sessionExpiryText` with a 30s ticking clock). The refresh token's
     own expiry is NOT exposed by Hyundai's OAuth (the token response only returns `expires_in` for the
     access token), so a refresh-token countdown isn't possible — the session line is the honest proxy.
+- Round 13 (release automation + in-app changelog/version):
+  - Repo cleanup: untracked a stray `.kotlin/sessions/*.salive` compiler-cache file that had been
+    committed (already in `.gitignore`). Rest of the tree is clean (no `build/`, secrets, or IDE junk
+    committed).
+  - User-facing `CHANGELOG.md` (Keep a Changelog format) is now the single source of truth for release
+    notes. `app/build.gradle.kts` copies it into a generated asset dir (`syncChangelogAsset` Copy task →
+    `build/generated/changelog`, registered as a main assets srcDir, hooked to `preBuild`) so the app can
+    read it without a committed duplicate under `src`.
+  - In-app About/What's-new: `ui/about/AboutScreen` shows `BuildConfig.VERSION_NAME`/`VERSION_CODE`, a
+    lightly-rendered changelog from the bundled `CHANGELOG.md` asset, and a "View project" link. New
+    `Routes.ABOUT`; Settings gained an "About" section (`onAbout`) and `AppNavigation` wires it. Strings
+    added to `values` + `values-es`.
+  - Release CI: `.github/workflows/release.yml` triggers on `v*` tags — builds `assembleRelease`,
+    extracts the matching `## [x.y.z]` section from `CHANGELOG.md` as the release body, and publishes a
+    GitHub Release with the APK (`softprops/action-gh-release`, `contents: write`). Prerelease when the
+    version has a `-suffix`.
+  - Optional release signing in `app/build.gradle.kts`: reads `RELEASE_STORE_FILE`/`_STORE_PASSWORD`/
+    `_KEY_ALIAS`/`_KEY_PASSWORD` from env (CI secrets) or `local.properties`; applied to the `release`
+    build type only when the keystore exists, else the APK is built unsigned. Keys documented in
+    `local.properties.example`; CI keystore via `RELEASE_KEYSTORE_BASE64` secret.
+  - CI guard now also requires `CHANGELOG.md` to exist. README "Continuous integration" section documents
+    the release/tag flow and signing secrets.
+- Round 14 (notification icon colour + status-bar-icon toggle):
+  - Brand-tinted notification: both `AutoLockNotification` builders now `setColor(R.color.notification_accent)`
+    (`#32D6C0` Digital Teal, new `res/values/colors.xml`) so the small icon + app-name accent are tinted
+    in the shade/heads-up. NOTE: Android always renders the collapsed **status-bar** small icon as a
+    monochrome white alpha mask — full colour there is impossible by design; `ic_stat_autolock` already
+    matches the app-icon padlock silhouette.
+  - Show/hide status-bar icon toggle: `AppSettings.showNotificationIcon` (default true, `SettingsRepository`
+    `SHOW_NOTIF_ICON` key). Implemented via a second **minimal-importance** channel
+    (`AutoLockApp.CHANNEL_ID_MINIMAL`, `IMPORTANCE_MIN`) created in `NotificationChannels.ensure`; when the
+    toggle is off the ongoing notification posts on that channel (no status-bar icon, still in the shade).
+    Builders take a `channelId` param; `AutoLockService.channelId()` picks visible vs minimal from the
+    tracked `showNotificationIcon`. `SettingsViewModel.setShowNotificationIcon` re-asserts watch so it
+    applies immediately. Settings → Notification "Show status-bar icon"; strings in `values` + `values-es`.
+- Round 15 (v1.0.0 release prep + full localization):
+  - Version bumped to `1.0.0`; `CHANGELOG.md` trimmed to a single first-release entry (no semver/Keep-a-
+    Changelog preamble). `AboutScreen.PROJECT_URL` + changelog link point at
+    `https://github.com/Vel-San/i5-AutoLock`. Removed the CLAUDE.md monetization/paywall section entirely
+    (no paywall anywhere in the app).
+  - Full localization: the Help screen's ~100 inline strings were externalized (`help_*` keys) and it now
+    renders via `stringResource`. `NotificationField.label` → `@StringRes labelRes` (Settings chips use
+    `stringResource(field.labelRes)`). `StatusSummary` gained a `Labels` holder (`Labels.from(context)`,
+    default `ENGLISH` so the pure unit test is unchanged); `AutoLockController` (now `@ApplicationContext`),
+    `HomeViewModel`, and `StatusRefreshWorker` pass localized labels so the notification data line
+    translates. Added **complete** `values-de`, `values-nl`, `values-fr` (and back-filled the new keys in
+    `values-es`) — all four locales at 379 strings, no missing keys, lint clean. Only pure-domain
+    `ActivityLog` messages remain English (no `Context` in the domain layer).
+
 
 

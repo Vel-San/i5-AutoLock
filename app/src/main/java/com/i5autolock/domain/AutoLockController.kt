@@ -40,6 +40,7 @@ data class AutoLockUiState(
  */
 @Singleton
 class AutoLockController @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
     private val settingsRepo: SettingsRepository,
     private val provider: BlueLinkProvider,
     private val locationHelper: com.i5autolock.data.location.LocationHelper,
@@ -48,6 +49,8 @@ class AutoLockController @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mutex = Mutex()
+    // Localised words for the notification status line.
+    private val summaryLabels get() = StatusSummary.Labels.from(appContext)
 
     private val _state = MutableStateFlow(AutoLockUiState())
     val state: StateFlow<AutoLockUiState> = _state
@@ -166,10 +169,10 @@ class AutoLockController @Inject constructor(
 
         // Build the user-customisable status line for the notification.
         val summary = if (settings.showStatusInNotification) {
-            StatusSummary.build(status, settings.notificationFields).ifBlank { null }
+            StatusSummary.build(status, settings.notificationFields, summaryLabels).ifBlank { null }
         } else null
         _state.value = _state.value.copy(statusSummary = summary)
-        statusCache.saveStatus(status, StatusSummary.build(status, settings.notificationFields))
+        statusCache.saveStatus(status, StatusSummary.build(status, settings.notificationFields, summaryLabels))
 
         when (val decision = LockPolicy.decide(status)) {
             is LockDecision.Skip -> {
@@ -225,14 +228,14 @@ class AutoLockController @Inject constructor(
                     anyDoorOpen = false,
                 )
                 val summary = if (settings.showStatusInNotification) {
-                    StatusSummary.build(locked, settings.notificationFields).ifBlank { null }
+                    StatusSummary.build(locked, settings.notificationFields, summaryLabels).ifBlank { null }
                 } else null
                 _state.value = _state.value.copy(
                     detection = DetectionState.LOCKED,
                     lastLockAtEpochMs = System.currentTimeMillis(),
                     statusSummary = summary,
                 )
-                statusCache.saveStatus(locked, StatusSummary.build(locked, settings.notificationFields))
+                statusCache.saveStatus(locked, StatusSummary.build(locked, settings.notificationFields, summaryLabels))
             }
             CommandResult.RateLimited -> fail("Locking is temporarily rate-limited. Try again shortly.")
             CommandResult.NotAuthenticated -> fail("Not signed in — please log in again.")
