@@ -231,12 +231,7 @@ fun LoginScreen(
                             scope.launch {
                                 viewModel.clearLog()
                                 viewModel.logInfo("Sign in requested for ${email.trim()}")
-                                viewModel.prepareWebLogin(email, pin)
-                                webAutofillEmail = email.trim()
-                                webAutofillPassword = password
-                                redirectPrefix = viewModel.redirectPrefix()
-                                authorizeUrl = viewModel.authorizeUrl()
-                                viewModel.logInfo("Opening Hyundai login page…")
+                                viewModel.onPasswordSubmitted(email, password, pin)
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),

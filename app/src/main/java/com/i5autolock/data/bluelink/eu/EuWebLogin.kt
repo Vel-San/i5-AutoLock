@@ -37,7 +37,7 @@ class EuWebLogin(private val appContext: Context) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val main = Handler(Looper.getMainLooper())
 
-    private enum class Phase { AUTHORIZE, CERTS, SIGNIN, TOKEN, DONE }
+    private enum class Phase { BOOT, CERTS, SIGNIN, TOKEN, DONE }
 
     suspend fun login(
         config: RegionConfig,
@@ -50,8 +50,7 @@ class EuWebLogin(private val appContext: Context) {
 
         suspendCancellableCoroutine { cont ->
             var settled = false
-            var phase = Phase.AUTHORIZE
-            var jwkKid = ""
+            var phase = Phase.BOOT
             lateinit var web: WebView
 
             fun finish(block: () -> Unit) {
@@ -80,6 +79,7 @@ class EuWebLogin(private val appContext: Context) {
                 fun result(tag: String, body: String) = main.post {
                     if (settled) return@post
                     when (tag) {
+                        "authorize" -> onAuthorize(body)
                         "certs" -> onCerts(body)
                         "token" -> onToken(body)
                     }
@@ -88,18 +88,23 @@ class EuWebLogin(private val appContext: Context) {
                 @JavascriptInterface
                 fun error(tag: String, msg: String) = main.post {
                     if (settled) return@post
-                    fail("Web $tag call failed: ${msg.take(120)}")
+                    fail("Web $tag call failed: ${msg.take(200)}")
+                }
+
+                fun onAuthorize(body: String) {
+                    diag("1/4 authorize (xhr) → ok (${body.length} bytes)")
+                    phase = Phase.CERTS
+                    startCertsFetch(web)
                 }
 
                 fun onCerts(body: String) {
                     val jwk = runCatching { json.decodeFromString<CertsEnvelope>(body).retValue }.getOrNull()
-                        ?: return fail("Login key missing from response.")
-                    jwkKid = jwk.kid
+                        ?: return fail("Login key missing from response: ${body.take(160)}")
                     diag("2/4 RSA key loaded (kid=${jwk.kid.take(8)}…)")
                     val encryptedPw = runCatching { EuAuth.encryptPassword(jwk.n, jwk.e, password) }
                         .getOrElse { return fail("Couldn't encrypt password: ${it.message}") }
                     phase = Phase.SIGNIN
-                    diag("3/4 signin (web) submitting…")
+                    diag("3/4 signin (form) submitting…")
                     web.loadDataWithBaseURL(
                         idp,
                         signinFormHtml(config, redirect, username.trim(), encryptedPw, jwk.kid),
@@ -115,7 +120,7 @@ class EuWebLogin(private val appContext: Context) {
                         diag("4/4 token body: ${body.take(160).ifBlank { "(empty)" }}")
                         return fail("Token exchange failed.")
                     }
-                    diag("4/4 token exchange (web) → ok")
+                    diag("4/4 token exchange (xhr) → ok")
                     succeed(EuIdpAuth.Tokens(token.accessToken, token.refreshToken.orEmpty(), token.expiresIn))
                 }
             }
@@ -136,7 +141,10 @@ class EuWebLogin(private val appContext: Context) {
                     return true
                 }
                 if (url.contains("/error")) {
-                    val stepLabel = if (phase == Phase.AUTHORIZE) "1/4 authorize" else "3/4 signin"
+                    val stepLabel = when (phase) {
+                        Phase.BOOT, Phase.CERTS -> "1/4 authorize"
+                        else -> "3/4 signin"
+                    }
                     diag("$stepLabel ↳ ${sanitize(url, redirect)}")
                     val desc = EuAuth.queryParam(url, "error_description")
                         ?: EuAuth.queryParam(url, "error") ?: "Bad Request"
@@ -177,16 +185,10 @@ class EuWebLogin(private val appContext: Context) {
 
                     override fun onPageFinished(view: WebView?, url: String?) {
                         if (settled) return
-                        when (phase) {
-                            Phase.AUTHORIZE -> {
-                                if (url != null && url.startsWith("http")) {
-                                    diag("1/4 authorize (web) → loaded")
-                                    phase = Phase.CERTS
-                                    startCertsFetch(view ?: return)
-                                }
-                            }
-                            Phase.TOKEN -> Unit // token fetch already kicked off in handleNavigation
-                            else -> Unit
+                        // First page load = the same-origin bootstrap; kick off the XHR authorize.
+                        if (phase == Phase.BOOT) {
+                            diag("Boot page loaded (${url?.take(60)}); starting XHR flow…")
+                            startAuthorizeFetch(view ?: return, authorizeUrl)
                         }
                     }
                 }
@@ -205,10 +207,32 @@ class EuWebLogin(private val appContext: Context) {
                 if (settled) return@removeAllCookies
                 cm.flush()
                 runCatching { web.clearCache(true); web.clearHistory() }
-                diag("Login (web): opening IDP…")
-                web.loadUrl(authorizeUrl)
+                diag("Login (web): bootstrapping IDP origin…")
+                // Load a blank page with base URL on the IDP host. Everything from here on is
+                // same-origin `fetch()` — XHR shaped requests that the mobile-app endpoints accept,
+                // riding Chromium's TLS fingerprint (which browsers-shaped navigations are rejected on).
+                web.loadDataWithBaseURL(
+                    "$idp/",
+                    "<html><head><meta charset=utf-8></head><body></body></html>",
+                    "text/html",
+                    "utf-8",
+                    null,
+                )
             }
         }
+    }
+
+    private fun startAuthorizeFetch(web: WebView, authorizeUrl: String) {
+        val js = """
+            (function(){
+              fetch(${jsStr(authorizeUrl)}, {credentials:'include', redirect:'follow',
+                    headers:{'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}})
+                .then(function(r){return r.text().then(function(t){return {u:r.url,s:r.status,body:t};});})
+                .then(function(x){AndroidBridge.result('authorize', x.s+' '+x.u+' '+x.body.length);})
+                .catch(function(e){AndroidBridge.error('authorize', String(e));});
+            })();
+        """.trimIndent()
+        web.evaluateJavascript(js, null)
     }
 
     private fun startCertsFetch(web: WebView) {
