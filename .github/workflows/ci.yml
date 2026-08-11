@@ -18,7 +18,7 @@ jobs:
     name: Repo hygiene & secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -67,7 +67,7 @@ jobs:
     name: Build · Lint · Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v4
