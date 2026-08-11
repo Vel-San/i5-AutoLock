@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AutoLock</string>
+    <string name="notification_channel_name">Auto-lock activity</string>
+    <string name="notification_channel_desc">Shows when AutoLock is watching for you leaving the car.</string>
+</resources>

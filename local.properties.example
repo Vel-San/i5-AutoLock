@@ -1,0 +1,8 @@
+# Example local overrides. Copy to local.properties and fill in if needed.
+# local.properties is git-ignored and must NEVER be committed.
+
+# Path to your Android SDK (usually set automatically by Android Studio).
+# sdk.dir=/Users/you/Library/Android/sdk
+
+# Optional: pre-fill a region for quicker testing (EU, US, CA, AU).
+# autolock.defaultRegion=EU

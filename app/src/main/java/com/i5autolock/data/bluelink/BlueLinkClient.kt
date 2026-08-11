@@ -1,0 +1,62 @@
+package com.i5autolock.data.bluelink
+
+import com.i5autolock.data.bluelink.model.CommandResult
+import com.i5autolock.data.bluelink.model.Vehicle
+import com.i5autolock.data.bluelink.model.VehicleStatus
+
+/**
+ * Region-agnostic contract for talking to a BlueLink/UVO backend.
+ *
+ * Implementations:
+ *  - [com.i5autolock.data.bluelink.fake.FakeBlueLinkClient] for tests + dry-run/demo.
+ *  - [com.i5autolock.data.bluelink.eu.EuBlueLinkClient] for the real EU flow.
+ *
+ * All calls are suspending and safe to run off the main thread.
+ */
+interface BlueLinkClient {
+
+    val region: Region
+
+    /** True once we hold a valid (or refreshable) session. */
+    suspend fun isAuthenticated(): Boolean
+
+    /**
+     * Complete authentication.
+     *
+     * For OAuth regions (EU) [authCodeOrPassword] is the authorization code captured
+     * from the redirect; for password regions it is the account password.
+     */
+    suspend fun login(username: String, authCodeOrPassword: String): CommandResult
+
+    /**
+     * EU-style sign-in with a pre-obtained 48-char refresh token (the reliable path, since
+     * Hyundai's EU login uses reCAPTCHA). Default: unsupported for non-EU regions.
+     */
+    suspend fun loginWithRefreshToken(refreshToken: String): CommandResult =
+        CommandResult.Failure("Refresh-token sign-in isn't supported for this region.")
+
+    /**
+     * Fully automatic EU sign-in with email + password: generates the refresh token on-device
+     * (headless, no reCAPTCHA). Default: unsupported for non-EU regions.
+     */
+    suspend fun loginWithPassword(username: String, password: String): CommandResult =
+        CommandResult.Failure("Email/password sign-in isn't supported for this region.")
+
+    /** Ensure the access token is fresh, refreshing if needed. */
+    suspend fun ensureFreshSession(): Boolean
+
+    /** List vehicles on the account. */
+    suspend fun vehicles(): List<Vehicle>
+
+    /** Fetch a lock-relevant status snapshot. May be cached or force-refreshed. */
+    suspend fun status(vehicleId: String, forceRefresh: Boolean): VehicleStatus
+
+    /** Send the remote lock command. */
+    suspend fun lock(vehicleId: String): CommandResult
+
+    /** Send the remote unlock command (used only for manual testing from the UI). */
+    suspend fun unlock(vehicleId: String): CommandResult
+
+    /** Drop the local session (logout). */
+    suspend fun clearSession()
+}

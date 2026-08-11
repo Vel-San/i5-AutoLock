@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security: no cleartext traffic anywhere, system trust anchors only.
+  User-added CAs are NOT trusted (blocks casual MITM via installed certs).
+  BlueLink hosts are pinned-ready: add <pin-set> once you have verified SPKI pins.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Hyundai/Kia EU CCS endpoints. Keep in sync with RegionConfig. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">eu-ccapi.hyundai.com</domain>
+        <domain includeSubdomains="true">eu-ccapi.kia.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+        <!--
+        Optional certificate pinning (uncomment and fill real pins before enabling):
+        <pin-set expiration="2027-01-01">
+            <pin digest="SHA-256">BASE64_SPKI_PIN_PRIMARY=</pin>
+            <pin digest="SHA-256">BASE64_SPKI_PIN_BACKUP=</pin>
+        </pin-set>
+        -->
+    </domain-config>
+</network-security-config>

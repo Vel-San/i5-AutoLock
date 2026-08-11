@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.cxx/
+
+# Local config & secrets
+local.properties
+*.keystore
+*.jks
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
