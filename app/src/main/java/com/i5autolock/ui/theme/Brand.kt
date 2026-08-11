@@ -7,21 +7,21 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-/** Accent colors used for lively, meaningful UI states (not just greys). */
+/** Semantic accents used for lively, meaningful UI states (not just greys). */
 object AccentColors {
-    val positive @Composable @ReadOnlyComposable get() = if (isSystemInDarkTheme()) Mint else Emerald
-    val warning @Composable @ReadOnlyComposable get() = Amber
-    val danger @Composable @ReadOnlyComposable get() = Coral
-    val info @Composable @ReadOnlyComposable get() = SkyBlue
+    val positive @Composable @ReadOnlyComposable get() = if (isSystemInDarkTheme()) DigitalTeal else Color(0xFF00786D)
+    val warning @Composable @ReadOnlyComposable get() = GravityGold
+    val danger @Composable @ReadOnlyComposable get() = UltimateRed
+    val info @Composable @ReadOnlyComposable get() = CyberSand
 }
 
 /** Vibrant brand gradient for hero surfaces (headers, status card). */
 @Composable
 @ReadOnlyComposable
 fun brandGradient(): Brush = if (isSystemInDarkTheme()) {
-    Brush.linearGradient(listOf(Color(0xFF0F5A3E), Color(0xFF0C766B)))
+    Brush.linearGradient(listOf(DigitalTealMuted, PhantomBlackVariant))
 } else {
-    Brush.linearGradient(listOf(Emerald, Teal))
+    Brush.linearGradient(listOf(DigitalTeal, Color(0xFF00786D)))
 }
 
 /** Soft tinted gradient for smaller accent chips/cards. */

@@ -49,7 +49,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val s = settingsRepo.settings.first()
             val client = provider.client(s)
-            _extras.value = _extras.value.copy(signedIn = client.isAuthenticated())
+            val signedIn = client.isAuthenticated()
+            _extras.value = _extras.value.copy(signedIn = signedIn)
+            // Auto-load vehicles on open when signed in — no more "hit Load every launch".
+            if (signedIn && !s.demoMode) loadVehicles()
         }
     }
 

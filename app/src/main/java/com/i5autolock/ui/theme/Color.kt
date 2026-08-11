@@ -2,26 +2,47 @@ package com.i5autolock.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Brand palette.
-val Emerald = Color(0xFF15B877)
-val EmeraldDeep = Color(0xFF0B3D2E)
-val Mint = Color(0xFF7CF5C4)
-val MintSoft = Color(0xFFC7F7E4)
-val Teal = Color(0xFF12A6B5)
-val Amber = Color(0xFFF5A623)
-val AmberSoft = Color(0xFFFFE3B0)
-val Coral = Color(0xFFF5556D)
-val CoralSoft = Color(0xFFFFD6DC)
-val SkyBlue = Color(0xFF3DA0F5)
-val SkyBlueSoft = Color(0xFFCFE7FF)
+/**
+ * Ioniq 5 inspired palette. Colours are keyed to Hyundai's official Ioniq 5 exterior/interior
+ * names so the app carries the car's visual identity without being a costume.
+ *
+ * Primary  → Digital Teal Green Pearl (Ioniq 5's launch signature)
+ * Secondary → Cyber Sand Beige (champagne warmth)
+ * Tertiary → Gravity Gold Matte accent
+ * Neutrals → Shooting Star Silver / Phantom Black
+ * Error   → Ultimate Red (a warmer than Material default)
+ */
 
-// Neutrals with a subtle green tint so surfaces never look flat grey.
-val SurfaceLight = Color(0xFFF3FBF6)
-val SurfaceVariantLight = Color(0xFFDCEFE5)
-val OnSurfaceLight = Color(0xFF0E1F18)
-val OutlineLight = Color(0xFF6F8B7E)
+// ── Primary — Digital Teal Green Pearl ──────────────────────────────
+val DigitalTeal = Color(0xFF4CC0B0)
+val DigitalTealDeep = Color(0xFF014B45)
+val DigitalTealSoft = Color(0xFFB9EDE4)
+val DigitalTealMuted = Color(0xFF083E39)
 
-val SurfaceDark = Color(0xFF0C1512)
-val SurfaceVariantDark = Color(0xFF23332C)
-val OnSurfaceDark = Color(0xFFE4F3EC)
-val OutlineDark = Color(0xFF6F8B7E)
+// ── Secondary — Cyber Sand Beige ────────────────────────────────────
+val CyberSand = Color(0xFFC8B58B)
+val CyberSandDeep = Color(0xFF3A2E17)
+val CyberSandSoft = Color(0xFFF3E9D0)
+
+// ── Tertiary — Gravity Gold ─────────────────────────────────────────
+val GravityGold = Color(0xFFB88B29)
+val GravityGoldDeep = Color(0xFF3A2100)
+val GravityGoldSoft = Color(0xFFFFDFA0)
+
+// ── Error — Ultimate Red ────────────────────────────────────────────
+val UltimateRed = Color(0xFFD64545)
+val UltimateRedSoft = Color(0xFFFFDAD5)
+val UltimateRedDeep = Color(0xFF410004)
+
+// ── Neutrals ────────────────────────────────────────────────────────
+// Light: Atlas White + Shooting Star Silver undertones (never a flat grey).
+val AtlasWhite = Color(0xFFF7F9F8)
+val ShootingStarLight = Color(0xFFDDE6E3)
+val OnAtlasWhite = Color(0xFF0F1A18)
+val OutlineLight = Color(0xFF7A8B87)
+
+// Dark: Phantom Black Pearl with a teal undertone.
+val PhantomBlack = Color(0xFF0B1210)
+val PhantomBlackVariant = Color(0xFF1B2825)
+val OnPhantomBlack = Color(0xFFE3EDEA)
+val OutlineDark = Color(0xFF8AA19B)

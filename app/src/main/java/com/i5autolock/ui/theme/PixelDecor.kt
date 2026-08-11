@@ -31,7 +31,7 @@ private const val ClusterRows = 5
 @Composable
 fun ParametricPixels(
     modifier: Modifier = Modifier,
-    color: Color = Mint,
+    color: Color = DigitalTeal,
     gapRatio: Float = 0.25f,
 ) {
     Canvas(modifier) {
@@ -53,7 +53,7 @@ fun ParametricPixels(
 @Composable
 fun PixelBand(
     modifier: Modifier = Modifier,
-    color: Color = Mint,
+    color: Color = DigitalTeal,
     cells: Int = 12,
     gapRatio: Float = 0.35f,
 ) {
@@ -74,7 +74,7 @@ fun PixelBand(
 
 /** Convenience accent sized like a small badge. */
 @Composable
-fun PixelBadge(color: Color = Mint, width: Dp = 44.dp, height: Dp = 28.dp) {
+fun PixelBadge(color: Color = DigitalTeal, width: Dp = 44.dp, height: Dp = 28.dp) {
     Box(Modifier.size(width, height)) {
         ParametricPixels(Modifier.size(width, height), color)
     }

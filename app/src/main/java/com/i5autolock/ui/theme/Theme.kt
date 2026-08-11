@@ -3,6 +3,7 @@ package com.i5autolock.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -11,58 +12,164 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.i5autolock.data.settings.ThemeMode
 
+// ── Colour schemes ──────────────────────────────────────────────────
 private val DarkColors = darkColorScheme(
-    primary = Mint,
-    onPrimary = EmeraldDeep,
-    primaryContainer = Color(0xFF14432F),
-    onPrimaryContainer = Mint,
-    secondary = Color(0xFF5FD6E3),
-    onSecondary = Color(0xFF00363D),
-    secondaryContainer = Color(0xFF15413F),
-    onSecondaryContainer = SkyBlueSoft,
-    tertiary = Amber,
-    onTertiary = Color(0xFF3E2600),
-    tertiaryContainer = Color(0xFF4A3410),
-    onTertiaryContainer = AmberSoft,
-    background = SurfaceDark,
-    onBackground = OnSurfaceDark,
-    surface = SurfaceDark,
-    onSurface = OnSurfaceDark,
-    surfaceVariant = SurfaceVariantDark,
-    onSurfaceVariant = Color(0xFFBFD6C9),
+    primary = DigitalTeal,
+    onPrimary = DigitalTealDeep,
+    primaryContainer = DigitalTealMuted,
+    onPrimaryContainer = DigitalTealSoft,
+    secondary = CyberSand,
+    onSecondary = CyberSandDeep,
+    secondaryContainer = Color(0xFF41341A),
+    onSecondaryContainer = CyberSandSoft,
+    tertiary = GravityGold,
+    onTertiary = GravityGoldDeep,
+    tertiaryContainer = Color(0xFF433110),
+    onTertiaryContainer = GravityGoldSoft,
+    background = PhantomBlack,
+    onBackground = OnPhantomBlack,
+    surface = PhantomBlack,
+    onSurface = OnPhantomBlack,
+    surfaceVariant = PhantomBlackVariant,
+    onSurfaceVariant = Color(0xFFB8C8C4),
     outline = OutlineDark,
-    error = Coral,
-    onError = Color(0xFF3A0710),
-    errorContainer = Color(0xFF5A1420),
-    onErrorContainer = CoralSoft,
+    error = UltimateRed,
+    onError = UltimateRedDeep,
+    errorContainer = Color(0xFF5B1A20),
+    onErrorContainer = UltimateRedSoft,
 )
 
 private val LightColors = lightColorScheme(
-    primary = Emerald,
+    primary = Color(0xFF00786D),
     onPrimary = Color.White,
-    primaryContainer = MintSoft,
-    onPrimaryContainer = EmeraldDeep,
-    secondary = Teal,
+    primaryContainer = DigitalTealSoft,
+    onPrimaryContainer = DigitalTealDeep,
+    secondary = Color(0xFF836A3A),
     onSecondary = Color.White,
-    secondaryContainer = SkyBlueSoft,
-    onSecondaryContainer = Color(0xFF06364C),
-    tertiary = Amber,
-    onTertiary = Color(0xFF3E2600),
-    tertiaryContainer = AmberSoft,
-    onTertiaryContainer = Color(0xFF3E2600),
-    background = SurfaceLight,
-    onBackground = OnSurfaceLight,
-    surface = SurfaceLight,
-    onSurface = OnSurfaceLight,
-    surfaceVariant = SurfaceVariantLight,
-    onSurfaceVariant = Color(0xFF3B4A43),
+    secondaryContainer = CyberSandSoft,
+    onSecondaryContainer = CyberSandDeep,
+    tertiary = GravityGold,
+    onTertiary = Color.White,
+    tertiaryContainer = GravityGoldSoft,
+    onTertiaryContainer = GravityGoldDeep,
+    background = AtlasWhite,
+    onBackground = OnAtlasWhite,
+    surface = AtlasWhite,
+    onSurface = OnAtlasWhite,
+    surfaceVariant = ShootingStarLight,
+    onSurfaceVariant = Color(0xFF3C4A47),
     outline = OutlineLight,
-    error = Coral,
+    error = UltimateRed,
     onError = Color.White,
-    errorContainer = CoralSoft,
-    onErrorContainer = Color(0xFF5A1420),
+    errorContainer = UltimateRedSoft,
+    onErrorContainer = UltimateRedDeep,
+)
+
+// ── Shapes — Ioniq 5 pixel-block corner language ───────────────────
+private val IonicShapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(6.dp),
+    medium = RoundedCornerShape(10.dp),
+    large = RoundedCornerShape(14.dp),
+    extraLarge = RoundedCornerShape(20.dp),
+)
+
+// ── Typography — tightened tracking + heavier display for a car UI ─
+private val IonicTypography = Typography(
+    displayLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Black,
+        fontSize = 57.sp,
+        lineHeight = 64.sp,
+        letterSpacing = (-1.0).sp,
+    ),
+    displayMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Black,
+        fontSize = 45.sp,
+        lineHeight = 52.sp,
+        letterSpacing = (-0.5).sp,
+    ),
+    displaySmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
+    ),
+    headlineLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Bold,
+        fontSize = 26.sp,
+        lineHeight = 32.sp,
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Bold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+    ),
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp,
+        lineHeight = 26.sp,
+        letterSpacing = 0.15.sp,
+    ),
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.1.sp,
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.2.sp,
+    ),
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.6.sp,
+    ),
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp,
+    ),
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 0.5.sp,
+    ),
 )
 
 @Composable
@@ -86,7 +193,8 @@ fun AutoLockTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography(),
+        typography = IonicTypography,
+        shapes = IonicShapes,
         content = content,
     )
 }

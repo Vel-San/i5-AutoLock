@@ -140,6 +140,19 @@ class EuWebLogin(private val appContext: Context) {
                     startTokenFetch(web, config, redirect, code)
                     return true
                 }
+                // Sign-in bounced back into the OAuth authorize page after a POST /signin —
+                // that means the credentials didn't take. Stop here and surface a clean error
+                // instead of letting WebView follow into the machine URL (which then trips
+                // Akamai's "abusing request" block and buries the real cause).
+                if (phase == Phase.SIGNIN && url.contains("/auth/api/v2/user/oauth2/authorize")) {
+                    diag("3/4 ↳ ${sanitize(url, redirect)}")
+                    web.stopLoading()
+                    fail(
+                        "Sign-in rejected — check your BlueLink email and password. If you " +
+                            "recently changed them, open the official Hyundai app once, then retry here.",
+                    )
+                    return true
+                }
                 if (url.contains("/error")) {
                     val stepLabel = when (phase) {
                         Phase.BOOT, Phase.CERTS -> "1/4 authorize"

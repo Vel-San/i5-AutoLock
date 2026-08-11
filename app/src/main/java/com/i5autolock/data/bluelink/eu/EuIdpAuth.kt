@@ -121,6 +121,8 @@ class EuIdpAuth {
 
         // HMGID2 signs in then 302s through the OAuth "connector" (authorize) before returning
         // the code. Follow the redirect chain until it lands on our redirect_uri with ?code=.
+        // If we bounce back into `/oauth2/authorize` the credentials didn't take — stop there
+        // instead of chasing into Akamai's machine-URL check which reports "abusing request".
         var code: String? = null
         var referer = "$idp/auth/account/signin"
         var hops = 0
@@ -130,6 +132,12 @@ class EuIdpAuth {
                 code = EuAuth.extractAuthCode(location)
                     ?: throw LoginException(classifyBounce(location))
                 break
+            }
+            if (location.contains("/auth/api/v2/user/oauth2/authorize")) {
+                throw LoginException(
+                    "Sign-in rejected — check your BlueLink email and password. If you " +
+                        "recently changed them, open the official Hyundai app once, then retry here.",
+                )
             }
             val absolute = if (location.startsWith("http")) location else "$idp$location"
             // Real navigations carry these; without them Akamai flags the hop as "abusing".

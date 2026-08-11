@@ -56,6 +56,18 @@ class LoginViewModel @Inject constructor(
 
     fun setEmailHint(email: String) { emailHint = email }
 
+    /**
+     * Single primary entry point. Auto-detects whether the "password" field holds an actual
+     * password or a pre-generated 48-char refresh token, and routes accordingly.
+     */
+    fun onSignIn(email: String, password: String, pin: String) {
+        if (password.trim().matches(Regex("^[A-Z0-9]{48}$"))) {
+            onRefreshTokenSubmitted(email, password.trim(), pin)
+        } else {
+            onPasswordSubmitted(email, password, pin)
+        }
+    }
+
     /** Prepare the visible WebView login: remember the email and store the PIN for locking. */
     fun prepareWebLogin(email: String, pin: String) {
         emailHint = email.trim()

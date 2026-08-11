@@ -26,18 +26,21 @@ class AutoLockApp : Application(), Configuration.Provider {
 
     private fun createNotificationChannel() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // v2 = new channel id so existing installs pick up the higher importance.
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.notification_channel_name),
-            NotificationManager.IMPORTANCE_LOW,
+            NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
             description = getString(R.string.notification_channel_desc)
-            setShowBadge(false)
+            setShowBadge(true)
         }
         manager.createNotificationChannel(channel)
+        // Cleanup: kill the old low-importance channel if it was ever created.
+        runCatching { manager.deleteNotificationChannel("autolock_activity") }
     }
 
     companion object {
-        const val CHANNEL_ID = "autolock_activity"
+        const val CHANNEL_ID = "autolock_activity_v2"
     }
 }

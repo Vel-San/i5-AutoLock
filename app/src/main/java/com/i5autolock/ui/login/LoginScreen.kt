@@ -2,9 +2,6 @@ package com.i5autolock.ui.login
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
@@ -64,14 +61,16 @@ import com.i5autolock.ui.theme.PixelBand
 import kotlinx.coroutines.launch
 
 /**
- * EU login. Two methods:
- *  - External browser (recommended): opens Hyundai's real login in the user's own browser
- *    (Chrome/Firefox/Brave); the user pastes the resulting redirect URL/code back in.
- *  - In-app WebView: signs in inside a locked-down, screenshot-blocked window and intercepts
- *    the redirect automatically.
+ * Sign-in — one form, one job.
  *
- * Security: the window is marked FLAG_SECURE, the WebView is locked down (no file/content
- * access, no password/form persistence), and cookies are cleared when leaving.
+ * The password field accepts either your BlueLink password *or* a pre-generated 48-char
+ * refresh token; the ViewModel auto-detects which and routes accordingly. If the primary
+ * headless flow fails, a secondary "sign in via in-app browser" option opens Hyundai's
+ * real login page inside a locked-down WebView with a Cancel button and live log strip.
+ *
+ * Security: FLAG_SECURE blocks screenshots/recents thumbnails while credentials are visible.
+ * The WebView is locked down (no file/content access, no password/form persistence, and
+ * cookies are cleared when the screen closes).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
@@ -88,17 +87,11 @@ fun LoginScreen(
     val clipboard = LocalClipboardManager.current
 
     var email by remember { mutableStateOf("") }
-    var authorizeUrl by remember { mutableStateOf<String?>(null) }
-    var redirectPrefix by remember { mutableStateOf("") }
-    var browserOpened by remember { mutableStateOf(false) }
-    var pasted by remember { mutableStateOf("") }
-    var refreshToken by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf("") }
-    var webAutofillEmail by remember { mutableStateOf("") }
-    var webAutofillPassword by remember { mutableStateOf<String?>(null) }
+    var authorizeUrl by remember { mutableStateOf<String?>(null) }
+    var redirectPrefix by remember { mutableStateOf("") }
 
-    // Block screenshots / recents thumbnail while credentials are on screen.
     DisposableEffect(Unit) {
         val activity = context as? Activity
         activity?.window?.setFlags(
@@ -107,7 +100,6 @@ fun LoginScreen(
         )
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            // Never leave a Hyundai web session behind.
             CookieManager.getInstance().removeAllCookies(null)
             CookieManager.getInstance().flush()
         }
@@ -120,7 +112,7 @@ fun LoginScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Sign in to BlueLink") },
+                title = { Text(if (authorizeUrl != null) "Sign in on Hyundai" else "Sign in to BlueLink") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -147,7 +139,6 @@ fun LoginScreen(
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
 
-            // Log panel — ALWAYS visible so problems are never hidden by the WebView.
             if (log.isNotEmpty()) {
                 Column(
                     Modifier
@@ -176,327 +167,257 @@ fun LoginScreen(
             }
 
             if (authorizeUrl == null) {
-                Column(
-                    Modifier
-                        .padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    PixelBand(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        cells = 20,
-                    )
-                    Text(
-                        "Sign in with your Hyundai BlueLink email and password. AutoLock opens " +
-                            "Hyundai's real login page, signs in for you, and captures the token " +
-                            "on your device — nothing is shared elsewhere.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("BlueLink email") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    (state as? LoginState.Error)?.let {
-                        Text(it.message, color = MaterialTheme.colorScheme.error)
-                    }
-
-                    // Recommended: fully automatic email + password sign-in.
-                    Text("Recommended", style = MaterialTheme.typography.labelLarge)
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("BlueLink password") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = pin,
-                        onValueChange = { pin = it.filter { c -> c.isDigit() }.take(6) },
-                        label = { Text("BlueLink PIN (needed to lock)") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                viewModel.clearLog()
-                                viewModel.logInfo("Sign in requested for ${email.trim()}")
-                                viewModel.onPasswordSubmitted(email, password, pin)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = email.isNotBlank() && password.isNotBlank(),
-                    ) { Text("Sign in") }
-
-                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
-
-                    // Advanced: paste a pre-generated 48-char refresh token.
-                    Text("Advanced: use a refresh token", style = MaterialTheme.typography.labelLarge)
-                    OutlinedTextField(
-                        value = refreshToken,
-                        onValueChange = { refreshToken = it },
-                        label = { Text("EU refresh token") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedButton(
-                        onClick = { viewModel.onRefreshTokenSubmitted(email, refreshToken, pin) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = refreshToken.isNotBlank(),
-                    ) { Text("Sign in with refresh token") }
-
-                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
-
-                    // Alternative: open the login in the user's own browser.
-                    Text("Or try browser sign-in", style = MaterialTheme.typography.labelLarge)
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                viewModel.setEmailHint(email)
-                                val url = viewModel.authorizeUrl()
-                                openInBrowser(context, url)
-                                browserOpened = true
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = email.isNotBlank(),
-                    ) { Text("Open in your browser (Chrome, Firefox…)") }
-
-                    if (browserOpened) {
-                        Text(
-                            "After you sign in, your browser lands on a blank/error page. Copy that " +
-                                "page's full URL (it contains \"code=\") and paste it here:",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        OutlinedTextField(
-                            value = pasted,
-                            onValueChange = { pasted = it },
-                            label = { Text("Paste redirect URL or code") },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Button(
-                            onClick = { viewModel.onPastedRedirect(pasted) },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = pasted.isNotBlank(),
-                        ) { Text("Finish sign-in") }
-                    }
-
-                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
-
-                    // Alternative: in-app WebView, sign in manually (no autofill).
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                viewModel.setEmailHint(email)
-                                webAutofillPassword = null
-                                redirectPrefix = viewModel.redirectPrefix()
-                                authorizeUrl = viewModel.authorizeUrl()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = email.isNotBlank(),
-                    ) { Text("Sign in inside the app instead") }
-
-                    TextButton(
-                        onClick = { viewModel.demoLogin() },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Skip and use Demo mode instead") }
-                }
-            } else {
-                val autofillEmail = webAutofillEmail
-                val autofillPass = webAutofillPassword
-                Column(Modifier.fillMaxSize()) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = {
-                            authorizeUrl = null
-                            webAutofillPassword = null
-                            viewModel.logInfo("Sign-in cancelled.")
-                            CookieManager.getInstance().removeAllCookies(null)
-                            CookieManager.getInstance().flush()
-                        }) { Text("Cancel") }
-                        Text(
-                            "Signing in on Hyundai's page…",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    AndroidView(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        factory = { ctx ->
-                            WebView(ctx).apply {
-                                // Fresh Akamai session every time — a stale/flagged cookie from a prior
-                                // attempt makes Hyundai reject even a valid login as an "abusing request".
-                                CookieManager.getInstance().removeAllCookies(null)
-                                CookieManager.getInstance().flush()
-                                // Cookies are REQUIRED for the OAuth session; without them Hyundai
-                                // returns "Session Timedout : 401" immediately.
-                                CookieManager.getInstance().setAcceptCookie(true)
-                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                with(settings) {
-                                    javaScriptEnabled = true
-                                    domStorageEnabled = true
-                                databaseEnabled = true
-                                // Present as a normal mobile browser; Hyundai's login rejects the
-                                // default WebView user-agent (the "; wv" token) with a 401.
-                                userAgentString =
-                                    "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 " +
-                                        "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-                                // Lock down everything the login page doesn't need.
-                                allowFileAccess = false
-                                allowContentAccess = false
-                                @Suppress("DEPRECATION")
-                                savePassword = false
-                                saveFormData = false
-                                setGeolocationEnabled(false)
-                            }
-                            isVerticalScrollBarEnabled = true
-                            webViewClient = object : WebViewClient() {
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                ): Boolean {
-                                    val url = request?.url?.toString() ?: return false
-                                    return if (url.startsWith(redirectPrefix)) {
-                                        view?.stopLoading()
-                                        viewModel.logInfo("Captured redirect ✓")
-                                        viewModel.onRedirectCaptured(url)
-                                        true
-                                    } else {
-                                        viewModel.logInfo("→ ${sanitizeForLog(url)}")
-                                        false
-                                    }
-                                }
-
-                                override fun onPageStarted(
-                                    view: WebView?,
-                                    url: String?,
-                                    favicon: android.graphics.Bitmap?,
-                                ) {
-                                    if (url == null) return
-                                    if (url.startsWith(redirectPrefix)) {
-                                        view?.stopLoading()
-                                        viewModel.logInfo("Captured redirect ✓")
-                                        viewModel.onRedirectCaptured(url)
-                                    } else {
-                                        viewModel.logInfo("Loading ${sanitizeForLog(url)}")
-                                    }
-                                }
-
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    error: android.webkit.WebResourceError?,
-                                ) {
-                                    val url = request?.url?.toString().orEmpty()
-                                    val isMainFrame = request?.isForMainFrame == true
-                                    if (!isMainFrame) return
-                                    viewModel.logError(
-                                        "WebView error ${error?.errorCode}: ${error?.description} @ ${sanitizeForLog(url)}",
-                                    )
-                                }
-
-                                override fun onReceivedHttpError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    errorResponse: android.webkit.WebResourceResponse?,
-                                ) {
-                                    val url = request?.url?.toString().orEmpty()
-                                    val isMainFrame = request?.isForMainFrame == true
-                                    if (!isMainFrame) return
-                                    viewModel.logError(
-                                        "HTTP ${errorResponse?.statusCode} ${errorResponse?.reasonPhrase} @ ${sanitizeForLog(url)}",
-                                    )
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    if (url == null || url.startsWith(redirectPrefix)) return
-                                    // Autofill and submit Hyundai's real login form for the user.
-                                    if (autofillPass != null) {
-                                        view?.evaluateJavascript(
-                                            autofillJs(autofillEmail, autofillPass), null,
-                                        )
-                                    }
-                                }
-                            }
-                            loadUrl(authorizeUrl!!)
+                SignInForm(
+                    email = email,
+                    onEmailChange = { email = it },
+                    password = password,
+                    onPasswordChange = { password = it },
+                    pin = pin,
+                    onPinChange = { pin = it.filter { c -> c.isDigit() }.take(6) },
+                    state = state,
+                    onSignIn = {
+                        viewModel.clearLog()
+                        viewModel.logInfo("Sign in requested for ${email.trim()}")
+                        viewModel.onSignIn(email, password, pin)
+                    },
+                    onOpenBrowser = {
+                        scope.launch {
+                            viewModel.clearLog()
+                            viewModel.prepareWebLogin(email, pin)
+                            redirectPrefix = viewModel.redirectPrefix()
+                            authorizeUrl = viewModel.authorizeUrl()
+                            viewModel.logInfo("Opening Hyundai's login page…")
                         }
                     },
+                    onDemo = { viewModel.demoLogin() },
                 )
-                }
+            } else {
+                WebViewSignIn(
+                    authorizeUrl = authorizeUrl!!,
+                    redirectPrefix = redirectPrefix,
+                    onCancel = {
+                        viewModel.logInfo("Sign-in cancelled.")
+                        authorizeUrl = null
+                        CookieManager.getInstance().removeAllCookies(null)
+                        CookieManager.getInstance().flush()
+                    },
+                    onRedirect = viewModel::onRedirectCaptured,
+                    onLog = viewModel::logInfo,
+                    onError = viewModel::logError,
+                )
             }
         }
     }
 }
 
-/** Opens the authorize URL in the user's chosen external browser (Chrome, Firefox, Brave…). */
-private fun openInBrowser(context: Context, url: String) {
-    val view = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+@Composable
+private fun SignInForm(
+    email: String,
+    onEmailChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    pin: String,
+    onPinChange: (String) -> Unit,
+    state: LoginState,
+    onSignIn: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    onDemo: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        PixelBand(
+            modifier = Modifier.fillMaxWidth().height(10.dp),
+            color = MaterialTheme.colorScheme.primary,
+            cells = 20,
+        )
+        Text(
+            "Sign in with your Hyundai BlueLink account. The refresh token is generated " +
+                "on your device — nothing is shared elsewhere.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = onEmailChange,
+            label = { Text("BlueLink email") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = password,
+            onValueChange = onPasswordChange,
+            label = { Text("BlueLink password (or 48-char refresh token)") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = pin,
+            onValueChange = onPinChange,
+            label = { Text("BlueLink PIN (required to lock)") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        (state as? LoginState.Error)?.let {
+            Text(it.message, color = MaterialTheme.colorScheme.error)
+        }
+
+        Button(
+            onClick = onSignIn,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = email.isNotBlank() && password.isNotBlank() && state !is LoginState.InProgress,
+        ) { Text("Sign in") }
+
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
+        Text(
+            "If sign-in above fails, try Hyundai's own login page inside the app:",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedButton(
+            onClick = onOpenBrowser,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = email.isNotBlank() && state !is LoginState.InProgress,
+        ) { Text("Sign in via in-app browser") }
+
+        TextButton(
+            onClick = onDemo,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Skip and use Demo mode instead") }
     }
-    val chooser = Intent.createChooser(view, "Open with").apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    runCatching { context.startActivity(chooser) }
 }
 
-/** Log-safe URL: strips query strings that carry secrets and trims length. */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun WebViewSignIn(
+    authorizeUrl: String,
+    redirectPrefix: String,
+    onCancel: () -> Unit,
+    onRedirect: (String) -> Unit,
+    onLog: (String) -> Unit,
+    onError: (String) -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onCancel) { Text("Cancel") }
+            Text(
+                "Signing in on Hyundai's page…",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        AndroidView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    CookieManager.getInstance().removeAllCookies(null)
+                    CookieManager.getInstance().flush()
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    with(settings) {
+                        javaScriptEnabled = true
+                        domStorageEnabled = true
+                        databaseEnabled = true
+                        userAgentString =
+                            "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 " +
+                                "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+                        allowFileAccess = false
+                        allowContentAccess = false
+                        @Suppress("DEPRECATION")
+                        savePassword = false
+                        saveFormData = false
+                        setGeolocationEnabled(false)
+                    }
+                    isVerticalScrollBarEnabled = true
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView?,
+                            request: WebResourceRequest?,
+                        ): Boolean {
+                            val url = request?.url?.toString() ?: return false
+                            return if (url.startsWith(redirectPrefix)) {
+                                view?.stopLoading()
+                                onLog("Captured redirect ✓")
+                                onRedirect(url)
+                                true
+                            } else {
+                                onLog("→ ${sanitizeForLog(url)}")
+                                false
+                            }
+                        }
+
+                        override fun onPageStarted(
+                            view: WebView?,
+                            url: String?,
+                            favicon: android.graphics.Bitmap?,
+                        ) {
+                            if (url == null) return
+                            if (url.startsWith(redirectPrefix)) {
+                                view?.stopLoading()
+                                onLog("Captured redirect ✓")
+                                onRedirect(url)
+                            }
+                        }
+
+                        override fun onReceivedError(
+                            view: WebView?,
+                            request: WebResourceRequest?,
+                            error: android.webkit.WebResourceError?,
+                        ) {
+                            if (request?.isForMainFrame != true) return
+                            onError(
+                                "WebView error ${error?.errorCode}: ${error?.description} @ " +
+                                    sanitizeForLog(request.url?.toString().orEmpty()),
+                            )
+                        }
+
+                        override fun onReceivedHttpError(
+                            view: WebView?,
+                            request: WebResourceRequest?,
+                            errorResponse: android.webkit.WebResourceResponse?,
+                        ) {
+                            if (request?.isForMainFrame != true) return
+                            onError(
+                                "HTTP ${errorResponse?.statusCode} ${errorResponse?.reasonPhrase} @ " +
+                                    sanitizeForLog(request.url?.toString().orEmpty()),
+                            )
+                        }
+                    }
+                    loadUrl(authorizeUrl)
+                }
+            },
+        )
+    }
+}
+
 private fun sanitizeForLog(url: String): String {
     if (url.isEmpty()) return "(empty)"
     val cut = url.substringBefore('?')
     val q = url.substringAfter('?', "")
     val safeQuery = if (q.isEmpty()) "" else {
-        val keys = q.split('&').mapNotNull { it.substringBefore('=', "").takeIf(String::isNotBlank) }
+        val keys = q.split('&')
+            .mapNotNull { it.substringBefore('=', "").takeIf(String::isNotBlank) }
         "?" + keys.joinToString(",")
     }
     val trimmed = "$cut$safeQuery"
     return if (trimmed.length > 90) trimmed.take(90) + "…" else trimmed
 }
-
-/**
- * JS that fills Hyundai's real login form (email + password) and submits it. Handles both
- * single-page and two-step (email → password) layouts, and dispatches input/change events so
- * the page's own framework registers the values. Injected on each non-redirect page load.
- */
-private fun autofillJs(email: String, password: String): String {
-    fun esc(s: String) = s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "").replace("\r", "")
-    val js = """
-        (function(){try{
-          var EM='__E__',PW='__P__';
-          function setVal(el,v){try{var d=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el),'value');if(d&&d.set){d.set.call(el,v);}else{el.value=v;}}catch(x){el.value=v;}
-            el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('blur',{bubbles:true}));}
-          function vis(el){return !!el&&el.offsetParent!==null&&!el.disabled;}
-          function q(s){for(var i=0;i<s.length;i++){var el=document.querySelector(s[i]);if(vis(el))return el;}return null;}
-          var em=q(['input[type=email]','input[autocomplete=username]','input[name*=email i]','input[name=username]','input[id*=email i]','input[id*=user i]']);
-          var pw=q(['input[type=password]','input[autocomplete=current-password]','input[name*=password i]','input[id*=password i]']);
-          if(em&&EM&&!em.value)setVal(em,EM);
-          if(pw&&PW)setVal(pw,PW);
-          function submit(){var b=q(['button[type=submit]','input[type=submit]']);
-            if(!b){var bs=document.querySelectorAll('button,a.btn,input[type=button],a[role=button]');
-              for(var i=0;i<bs.length;i++){var t=((bs[i].innerText||bs[i].value||'')+'').toLowerCase();
-                if(/sign ?in|log ?in|einloggen|anmelden|weiter|next|continue|submit|confirm/.test(t)&&vis(bs[i])){b=bs[i];break;}}}
-            if(b)b.click();}
-          if(pw&&PW){setTimeout(submit,500);}else if(em&&EM){setTimeout(submit,500);}
-        }catch(err){}})();
-    """.trimIndent().replace("\n", " ")
-    return "javascript:" + js.replace("__E__", esc(email)).replace("__P__", esc(password))
-}
-
