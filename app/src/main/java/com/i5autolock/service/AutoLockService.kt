@@ -181,7 +181,9 @@ class AutoLockService : Service() {
     private fun playLockConfirmation() = scope.launch {
         val settings = settingsRepo.settings.first()
         if (settings.hapticOnLock) vibrateOnce()
-        if (settings.soundOnLock) runCatching { com.i5autolock.data.sound.EvChime.playLock() }
+        if (settings.soundOnLock) runCatching {
+            com.i5autolock.data.sound.LockSound.play(this@AutoLockService, settings.customLockSoundUri)
+        }
     }
 
     private fun vibrateOnce() {

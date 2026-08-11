@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.i5autolock.R
 import com.i5autolock.domain.LogLevel
 import com.i5autolock.ui.theme.PixelBand
 import kotlinx.coroutines.launch
@@ -112,10 +114,10 @@ fun LoginScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (authorizeUrl != null) "Sign in on Hyundai" else "Sign in to BlueLink") },
+                title = { Text(if (authorizeUrl != null) stringResource(R.string.login_title_hyundai) else stringResource(R.string.login_title_bluelink)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -123,8 +125,8 @@ fun LoginScreen(
                         TextButton(onClick = {
                             val text = log.asReversed().joinToString("\n") { it.message }
                             clipboard.setText(AnnotatedString(text))
-                        }) { Text("Copy log") }
-                        TextButton(onClick = { viewModel.clearLog() }) { Text("Clear") }
+                        }) { Text(stringResource(R.string.login_copy_log)) }
+                        TextButton(onClick = { viewModel.clearLog() }) { Text(stringResource(R.string.login_clear)) }
                     }
                 },
             )
@@ -236,15 +238,14 @@ private fun SignInForm(
             cells = 20,
         )
         Text(
-            "Sign in with your Hyundai BlueLink account. The refresh token is generated " +
-                "on your device — nothing is shared elsewhere.",
+            stringResource(R.string.login_intro),
             style = MaterialTheme.typography.bodyMedium,
         )
 
         OutlinedTextField(
             value = email,
             onValueChange = onEmailChange,
-            label = { Text("BlueLink email") },
+            label = { Text(stringResource(R.string.login_email)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             modifier = Modifier.fillMaxWidth(),
@@ -252,7 +253,7 @@ private fun SignInForm(
         OutlinedTextField(
             value = password,
             onValueChange = onPasswordChange,
-            label = { Text("BlueLink password (or 48-char refresh token)") },
+            label = { Text(stringResource(R.string.login_password)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -261,7 +262,7 @@ private fun SignInForm(
         OutlinedTextField(
             value = pin,
             onValueChange = onPinChange,
-            label = { Text("BlueLink PIN (required to lock)") },
+            label = { Text(stringResource(R.string.login_pin)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -276,24 +277,24 @@ private fun SignInForm(
             onClick = onSignIn,
             modifier = Modifier.fillMaxWidth(),
             enabled = email.isNotBlank() && password.isNotBlank() && state !is LoginState.InProgress,
-        ) { Text("Sign in") }
+        ) { Text(stringResource(R.string.login_sign_in)) }
 
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
         Text(
-            "If sign-in above fails, try Hyundai's own login page inside the app:",
+            stringResource(R.string.login_browser_hint),
             style = MaterialTheme.typography.bodySmall,
         )
         OutlinedButton(
             onClick = onOpenBrowser,
             modifier = Modifier.fillMaxWidth(),
             enabled = email.isNotBlank() && state !is LoginState.InProgress,
-        ) { Text("Sign in via in-app browser") }
+        ) { Text(stringResource(R.string.login_browser_button)) }
 
         TextButton(
             onClick = onDemo,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Skip and use Demo mode instead") }
+        ) { Text(stringResource(R.string.login_demo)) }
     }
 }
 
@@ -315,9 +316,9 @@ private fun WebViewSignIn(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onCancel) { Text("Cancel") }
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
             Text(
-                "Signing in on Hyundai's page…",
+                stringResource(R.string.login_webview_progress),
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

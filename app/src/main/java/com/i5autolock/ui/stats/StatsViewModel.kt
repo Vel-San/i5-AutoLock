@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.i5autolock.data.metrics.ApiMetrics
 import com.i5autolock.data.metrics.MetricsSnapshot
+import com.i5autolock.data.secure.SecureStore
 import com.i5autolock.data.settings.AppSettings
 import com.i5autolock.data.settings.SettingsRepository
 import com.i5autolock.domain.ActivityLog
@@ -18,6 +19,7 @@ import javax.inject.Inject
 class StatsViewModel @Inject constructor(
     private val metrics: ApiMetrics,
     private val activityLog: ActivityLog,
+    private val secureStore: SecureStore,
     settingsRepo: SettingsRepository,
 ) : ViewModel() {
 
@@ -28,6 +30,9 @@ class StatsViewModel @Inject constructor(
 
     val settings: StateFlow<AppSettings> = settingsRepo.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
+
+    /** When the current access token (session) expires, or null if not signed in. */
+    fun sessionExpiresAtEpochMs(): Long? = secureStore.loadTokens()?.expiresAtEpochMs?.takeIf { it > 0 }
 
     fun clearMetrics() = metrics.clear()
     fun clearLog() = activityLog.clear()

@@ -12,8 +12,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.i5autolock.R
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
@@ -50,20 +52,17 @@ fun PermissionGate(content: @Composable () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                "AutoLock needs a few permissions",
+                stringResource(R.string.perm_title),
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
             )
             Text(
-                "\u2022 Bluetooth: to notice when you leave the car\n" +
-                    "\u2022 Location: to confirm you've walked away\n" +
-                    "\u2022 Activity: to tell driving from walking\n" +
-                    "\u2022 Notifications: to show locking status",
+                stringResource(R.string.perm_body),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(vertical = 16.dp),
             )
             Button(onClick = { state.launchMultiplePermissionRequest() }) {
-                Text("Grant permissions")
+                Text(stringResource(R.string.perm_grant))
             }
         }
     }

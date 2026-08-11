@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.i5autolock.R
 import com.i5autolock.data.metrics.ApiCall
 import com.i5autolock.data.metrics.ApiOutcome
 import com.i5autolock.domain.LogEntry
@@ -62,6 +65,11 @@ fun StatsScreen(
 
     // Pending confirmation for destructive "Clear" actions.
     var confirm by remember { mutableStateOf<ConfirmAction?>(null) }
+    // Captured in composable scope so they can be used inside click lambdas.
+    val clearCallsTitle = stringResource(R.string.stats_clear_calls_title)
+    val clearCallsMsg = stringResource(R.string.stats_clear_calls_msg)
+    val clearLogTitle = stringResource(R.string.stats_clear_log_title)
+    val clearLogMsg = stringResource(R.string.stats_clear_log_msg)
 
     confirm?.let { pending ->
         AlertDialog(
@@ -69,10 +77,10 @@ fun StatsScreen(
             title = { Text(pending.title) },
             text = { Text(pending.message) },
             confirmButton = {
-                TextButton(onClick = { pending.action(); confirm = null }) { Text("Clear") }
+                TextButton(onClick = { pending.action(); confirm = null }) { Text(stringResource(R.string.stats_clear)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirm = null }) { Text("Cancel") }
+                TextButton(onClick = { confirm = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -82,11 +90,11 @@ fun StatsScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("API statistics") },
+                title = { Text(stringResource(R.string.stats_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -100,65 +108,78 @@ fun StatsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Session / connection.
-            Section("Session") {
-                KeyValue("Region", settings.region.displayName)
-                KeyValue("Mode", if (settings.demoMode) "Demo (simulated)" else "Live")
-                KeyValue("Command mode", settings.runMode.name)
-                KeyValue("Account", settings.accountEmail ?: "Not signed in")
-                KeyValue("Vehicle", settings.vehicleNickname ?: "None selected")
+            Section(stringResource(R.string.stats_sec_session)) {
+                KeyValue(stringResource(R.string.stats_region), settings.region.displayName)
+                KeyValue(stringResource(R.string.stats_mode), if (settings.demoMode) stringResource(R.string.stats_mode_demo) else stringResource(R.string.stats_mode_live))
+                KeyValue(stringResource(R.string.stats_command_mode), settings.runMode.name)
+                KeyValue(stringResource(R.string.stats_account), settings.accountEmail ?: stringResource(R.string.set_not_signed_in))
+                KeyValue(stringResource(R.string.stats_vehicle), settings.vehicleNickname ?: stringResource(R.string.stats_none_selected))
+                if (!settings.demoMode) {
+                    // Refresh over minute-ish ticks so the countdown stays live.
+                    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+                    LaunchedEffect(Unit) {
+                        while (true) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(30_000) }
+                    }
+                    val expiry = remember(now) { viewModel.sessionExpiresAtEpochMs() }
+                    KeyValue(
+                        stringResource(R.string.stats_session_expiry),
+                        if (expiry == null) stringResource(R.string.stats_session_none)
+                        else sessionExpiryText(expiry, now),
+                    )
+                }
             }
 
             // Rate limiting.
-            Section("Rate limiting") {
+            Section(stringResource(R.string.stats_sec_rate)) {
                 if (snapshot.isRateLimited()) {
                     val secs = ((snapshot.rateLimitedUntilEpochMs!! - System.currentTimeMillis()) / 1000)
                         .coerceAtLeast(0)
                     Text(
-                        "⚠ Rate-limited — cooldown ~${secs}s remaining",
+                        stringResource(R.string.stats_rate_limited, secs.toInt()),
                         color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Bold,
                     )
                 } else {
-                    Text("✓ Not rate-limited", color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.stats_not_rate_limited), color = MaterialTheme.colorScheme.primary)
                 }
-                KeyValue("Rate-limit hits", snapshot.rateLimitedCount.toString())
+                KeyValue(stringResource(R.string.stats_rate_hits), snapshot.rateLimitedCount.toString())
             }
 
             // Aggregate metrics.
-            Section("Totals") {
-                KeyValue("Total API calls", snapshot.totalCalls.toString())
+            Section(stringResource(R.string.stats_sec_totals)) {
+                KeyValue(stringResource(R.string.stats_total_calls), snapshot.totalCalls.toString())
                 val pct = (snapshot.successRate * 100).roundToInt()
-                KeyValue("Success rate", "$pct%")
+                KeyValue(stringResource(R.string.stats_success_rate), "$pct%")
                 LinearProgressIndicator(
                     progress = { snapshot.successRate },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                KeyValue("Successes", snapshot.successCount.toString())
-                KeyValue("Failures", snapshot.failureCount.toString())
-                KeyValue("Auth failures", snapshot.unauthenticatedCount.toString())
-                KeyValue("Avg duration", "${snapshot.avgDurationMs} ms")
+                KeyValue(stringResource(R.string.stats_successes), snapshot.successCount.toString())
+                KeyValue(stringResource(R.string.stats_failures), snapshot.failureCount.toString())
+                KeyValue(stringResource(R.string.stats_auth_failures), snapshot.unauthenticatedCount.toString())
+                KeyValue(stringResource(R.string.stats_avg_duration), "${snapshot.avgDurationMs} ms")
                 snapshot.lastCall?.let {
-                    KeyValue("Last call", "${it.operation} · ${it.durationMs} ms · ${it.outcome}")
+                    KeyValue(stringResource(R.string.stats_last_call), "${it.operation} · ${it.durationMs} ms · ${it.outcome}")
                 }
             }
 
             // Recent API calls.
-            SectionWithAction("Recent API calls", "Clear", {
-                confirm = ConfirmAction("Clear API calls?", "This removes the recorded call history.", viewModel::clearMetrics)
+            SectionWithAction(stringResource(R.string.stats_sec_recent), stringResource(R.string.stats_clear), {
+                confirm = ConfirmAction(clearCallsTitle, clearCallsMsg, viewModel::clearMetrics)
             }) {
                 if (snapshot.calls.isEmpty()) {
-                    Text("No API calls yet.", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.stats_no_calls), style = MaterialTheme.typography.bodyMedium)
                 } else {
                     snapshot.calls.take(50).forEach { ApiCallRow(it) }
                 }
             }
 
             // Activity log.
-            SectionWithAction("Activity log", "Clear", {
-                confirm = ConfirmAction("Clear activity log?", "This removes the recent activity entries.", viewModel::clearLog)
+            SectionWithAction(stringResource(R.string.stats_sec_log), stringResource(R.string.stats_clear), {
+                confirm = ConfirmAction(clearLogTitle, clearLogMsg, viewModel::clearLog)
             }) {
                 if (log.isEmpty()) {
-                    Text("No activity yet.", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.stats_no_activity), style = MaterialTheme.typography.bodyMedium)
                 } else {
                     log.take(50).forEach { LogRow(it) }
                 }
@@ -168,8 +189,23 @@ fun StatsScreen(
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+private fun sessionExpiryText(expiryEpochMs: Long, now: Long): String {
+    val diff = expiryEpochMs - now
+    val clock = remember(expiryEpochMs) {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(expiryEpochMs))
+    }
+    return if (diff <= 0) {
+        stringResource(R.string.stats_session_expired, clock)
+    } else {
+        val mins = diff / 60_000
+        val rel = if (mins >= 60) stringResource(R.string.stats_session_in_h, mins / 60, mins % 60)
+        else stringResource(R.string.stats_session_in_m, mins.coerceAtLeast(1))
+        stringResource(R.string.stats_session_valid, rel, clock)
+    }
+}
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {    Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             content()

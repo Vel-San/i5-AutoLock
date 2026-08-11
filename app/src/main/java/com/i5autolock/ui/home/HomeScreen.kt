@@ -47,6 +47,8 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Warning
+
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Tune
@@ -80,10 +82,12 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.i5autolock.R
 import com.i5autolock.data.bluelink.model.LockState
 import com.i5autolock.data.settings.RunMode
 import com.i5autolock.domain.LogEntry
@@ -113,6 +117,7 @@ fun HomeScreen(
     val log by viewModel.log.collectAsStateWithLifecycle()
     val vehicleStatus by viewModel.vehicleStatus.collectAsStateWithLifecycle()
     val lockResult by viewModel.lockResult.collectAsStateWithLifecycle()
+    val notice by viewModel.notice.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     var showLockDialog by remember { mutableStateOf(false) }
@@ -120,6 +125,12 @@ fun HomeScreen(
         lockResult?.let {
             android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
             viewModel.clearLockResult()
+        }
+    }
+    LaunchedEffect(notice) {
+        notice?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearNotice()
         }
     }
     if (showLockDialog) {
@@ -139,10 +150,10 @@ fun HomeScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     actions = {
                         IconButton(onClick = onOpenHelp) {
-                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Help")
+                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = stringResource(R.string.cd_help))
                         }
                         IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Default.Tune, contentDescription = "Settings")
+                            Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.cd_settings))
                         }
                     },
                 )
@@ -175,6 +186,9 @@ fun HomeScreen(
                     }
                     if (vehicleStatus.needsReauth) {
                         item { ReauthBanner(onSignIn = onOpenLogin) }
+                    }
+                    if (vehicleStatus.lowVoltage) {
+                        item { LowVoltageBanner(percent = vehicleStatus.status?.twelveVoltPercent) }
                     }
                     if (settings.knownVehicles.size > 1) {
                         item {
@@ -209,7 +223,7 @@ fun HomeScreen(
                                     Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        if (armedLive) "Simulation off (Armed)" else "Simulate leaving",
+                                        if (armedLive) stringResource(R.string.home_simulate_off) else stringResource(R.string.home_simulate),
                                         fontWeight = FontWeight.SemiBold,
                                     )
                                 }
@@ -218,12 +232,12 @@ fun HomeScreen(
                                     modifier = Modifier.height(56.dp),
                                     shape = RoundedCornerShape(18.dp),
                                 ) {
-                                    Text("Cancel")
+                                    Text(stringResource(R.string.action_cancel))
                                 }
                             }
                             if (armedLive) {
                                 Text(
-                                    "Armed on a real account would lock your car for real. Switch to Dry run or Demo to simulate safely.",
+                                    stringResource(R.string.home_simulate_hint),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -237,12 +251,12 @@ fun HomeScreen(
                                 ) {
                                     Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Lock now", fontWeight = FontWeight.SemiBold)
+                                    Text(stringResource(R.string.action_lock_now), fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
                     }
-                    item { SectionHeader("Recent activity") }
+                    item { SectionHeader(stringResource(R.string.home_recent_activity)) }
                     item { ActivityLogCard(log) }
                 }
             }
@@ -256,19 +270,19 @@ private fun LockNowDialog(requirePin: Boolean, onDismiss: () -> Unit, onConfirm:
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text("Lock the car now?") },
+        title = { Text(stringResource(R.string.home_lock_dialog_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    if (requirePin) "Enter your BlueLink PIN to send a real lock command."
-                    else "This sends a lock command to your car.",
+                    if (requirePin) stringResource(R.string.home_lock_dialog_pin)
+                    else stringResource(R.string.home_lock_dialog_plain),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (requirePin) {
                     androidx.compose.material3.OutlinedTextField(
                         value = pin,
                         onValueChange = { if (it.length <= 8) pin = it.filter(Char::isDigit) },
-                        label = { Text("PIN") },
+                        label = { Text(stringResource(R.string.home_pin_label)) },
                         singleLine = true,
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword),
@@ -280,9 +294,9 @@ private fun LockNowDialog(requirePin: Boolean, onDismiss: () -> Unit, onConfirm:
             Button(
                 onClick = { onConfirm(pin.ifBlank { null }) },
                 enabled = !requirePin || pin.length >= 4,
-            ) { Text("Lock now") }
+            ) { Text(stringResource(R.string.action_lock_now)) }
         },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -300,12 +314,46 @@ private fun ReauthBanner(onSignIn: () -> Unit) {
         ) {
             Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
             Text(
-                "Your session expired. Sign in again to keep AutoLock working.",
+                stringResource(R.string.home_reauth),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.weight(1f),
             )
-            Button(onClick = onSignIn) { Text("Sign in") }
+            Button(onClick = onSignIn) { Text(stringResource(R.string.action_sign_in)) }
+        }
+    }
+}
+
+@Composable
+private fun LowVoltageBanner(percent: Int?) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+    ) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                Icons.Default.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.home_low_volt_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+                Text(
+                    if (percent != null) stringResource(R.string.home_low_volt_body, percent)
+                    else stringResource(R.string.home_low_volt_body_generic),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
         }
     }
 }
@@ -318,7 +366,7 @@ private fun VehicleSwitcher(
     onSelect: (com.i5autolock.data.settings.KnownVehicle) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader("Vehicles")
+        SectionHeader(stringResource(R.string.home_vehicles))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             vehicles.forEach { v ->
                 androidx.compose.material3.FilterChip(
@@ -419,7 +467,7 @@ private fun StatusCard(
             }
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "SYSTEM STATUS",
+                    stringResource(R.string.home_system_status),
                     style = MaterialTheme.typography.labelMedium,
                     color = onGradient.copy(alpha = 0.7f),
                 )
@@ -432,7 +480,7 @@ private fun StatusCard(
                         // Heartbeat dot pulses whenever AutoLock is watching.
                         if (enabled) PulsingDot(onGradient)
                         Text(
-                            text = if (enabled) "Watching" else "Off",
+                            text = if (enabled) stringResource(R.string.home_watching) else stringResource(R.string.home_off),
                             style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.Black,
                             color = onGradient,
@@ -456,7 +504,7 @@ private fun StatusCard(
                         tint = onGradient.copy(alpha = 0.9f),
                     )
                     Text(
-                        vehicleName ?: "No vehicle selected",
+                        vehicleName ?: stringResource(R.string.home_no_vehicle),
                         style = MaterialTheme.typography.titleMedium,
                         color = onGradient.copy(alpha = 0.95f),
                     )
@@ -464,17 +512,17 @@ private fun StatusCard(
 
                 AnimatedContent(targetState = detection, label = "detection") { state ->
                     val label = when (state) {
-                        DetectionState.IDLE -> if (enabled) "Idle — waiting for you to leave the car." else "Disabled."
-                        DetectionState.ARMED -> "Armed and ready."
-                        DetectionState.CONFIRMING -> "Confirming you left the car…"
-                        DetectionState.GRACE -> "Locking in ${graceRemaining}s…"
-                        DetectionState.VERIFYING -> "Checking vehicle status…"
-                        DetectionState.AWAITING_CONFIRM -> "Tap \"Lock now\" in the notification to confirm."
-                        DetectionState.LOCKING -> "Locking…"
-                        DetectionState.LOCKED -> "Locked ✓"
-                        DetectionState.SKIPPED -> "Already secure — nothing to do."
-                        DetectionState.ABORTED -> "Cancelled."
-                        DetectionState.ERROR -> "Something went wrong."
+                        DetectionState.IDLE -> if (enabled) stringResource(R.string.home_state_idle) else stringResource(R.string.home_state_disabled)
+                        DetectionState.ARMED -> stringResource(R.string.home_state_armed)
+                        DetectionState.CONFIRMING -> stringResource(R.string.home_state_confirming)
+                        DetectionState.GRACE -> stringResource(R.string.home_state_grace, graceRemaining)
+                        DetectionState.VERIFYING -> stringResource(R.string.home_state_verifying)
+                        DetectionState.AWAITING_CONFIRM -> stringResource(R.string.home_state_awaiting)
+                        DetectionState.LOCKING -> stringResource(R.string.home_state_locking)
+                        DetectionState.LOCKED -> stringResource(R.string.home_state_locked)
+                        DetectionState.SKIPPED -> stringResource(R.string.home_state_skipped)
+                        DetectionState.ABORTED -> stringResource(R.string.home_state_aborted)
+                        DetectionState.ERROR -> stringResource(R.string.home_state_error)
                     }
                     Text(label, style = MaterialTheme.typography.bodyMedium, color = onGradient.copy(alpha = 0.85f))
                 }
@@ -502,8 +550,8 @@ private fun StatusCard(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (demoMode) Badge("DEMO", onGradient)
-                    Badge(if (dryRun) "DRY RUN" else "ARMED", onGradient)
+                    if (demoMode) Badge(stringResource(R.string.badge_demo), onGradient)
+                    Badge(if (dryRun) stringResource(R.string.badge_dry_run) else stringResource(R.string.badge_armed), onGradient)
                 }
             }
         }
@@ -523,6 +571,7 @@ private fun VehicleStatusCard(
     val status = ui.status
     val lockState = status?.lockState ?: LockState.UNKNOWN
     val now = rememberNow()
+    val context = LocalContext.current
     val gradient = when (lockState) {
         LockState.LOCKED -> Brush.linearGradient(listOf(Color(0xFF0E8575), Color(0xFF0A4E48)))
         LockState.UNLOCKED -> Brush.linearGradient(listOf(Color(0xFFC9503E), Color(0xFF7E2A20)))
@@ -554,7 +603,7 @@ private fun VehicleStatusCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("VEHICLE", style = MaterialTheme.typography.labelLarge, color = onCard.copy(alpha = 0.75f))
+                    Text(stringResource(R.string.home_vehicle), style = MaterialTheme.typography.labelLarge, color = onCard.copy(alpha = 0.75f))
                     RefreshButton(loading = ui.loading, onRefresh = onRefresh, tint = onCard)
                 }
 
@@ -577,17 +626,17 @@ private fun VehicleStatusCard(
                         Column {
                             Text(
                                 when (state) {
-                                    LockState.LOCKED -> "Locked"
-                                    LockState.UNLOCKED -> "Unlocked"
-                                    LockState.UNKNOWN -> "Unknown"
+                                    LockState.LOCKED -> stringResource(R.string.lock_locked)
+                                    LockState.UNLOCKED -> stringResource(R.string.lock_unlocked)
+                                    LockState.UNKNOWN -> stringResource(R.string.lock_unknown)
                                 },
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Black,
                                 color = onCard,
                             )
                             Text(
-                                text = ui.lastRefreshEpochMs?.let { "Updated ${relativeTime(it, now)}" }
-                                    ?: if (ui.loading) "Refreshing…" else "Not checked yet",
+                                text = ui.lastRefreshEpochMs?.let { stringResource(R.string.home_updated, relativeTime(it, now, context)) }
+                                    ?: if (ui.loading) stringResource(R.string.home_refreshing) else stringResource(R.string.home_not_checked),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = onCard.copy(alpha = 0.75f),
                             )
@@ -609,20 +658,20 @@ private fun VehicleStatusCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         status.rangeKm?.let {
-                            HeroStatChip(Icons.Default.Route, "$it km", "Range", onCard)
+                            HeroStatChip(Icons.Default.Route, stringResource(R.string.home_range_value, it), stringResource(R.string.home_range), onCard)
                         }
                         status.twelveVoltPercent?.let {
-                            HeroStatChip(Icons.Default.BatteryStd, "$it%", "12V", onCard)
+                            HeroStatChip(Icons.Default.BatteryStd, "$it%", stringResource(R.string.home_twelve_volt), onCard)
                         }
                         HeroStatChip(
                             icon = Icons.Default.Bolt,
-                            value = if (status.engineRunning) "On" else "Off",
-                            label = "Engine",
+                            value = if (status.engineRunning) stringResource(R.string.state_on) else stringResource(R.string.state_off),
+                            label = stringResource(R.string.home_engine),
                             onCard = onCard,
                         )
                     }
                     status.anyDoorOpen?.takeIf { it }?.let {
-                        Text("A door appears to be open.", color = onCard, style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.home_door_open), color = onCard, style = MaterialTheme.typography.bodySmall)
                     }
                 } else if (ui.loading) {
                     // First-ever load with nothing cached — show shimmering skeletons.
@@ -637,7 +686,6 @@ private fun VehicleStatusCard(
                 }
 
                 parkedLabel?.let {
-                    val context = LocalContext.current
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
@@ -647,8 +695,8 @@ private fun VehicleStatusCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(16.dp), tint = onCard.copy(alpha = 0.9f))
-                        Text("Parked near $it", style = MaterialTheme.typography.bodySmall, color = onCard.copy(alpha = 0.9f))
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open in Maps", modifier = Modifier.size(14.dp), tint = onCard.copy(alpha = 0.7f))
+                        Text(stringResource(R.string.home_parked_near, it), style = MaterialTheme.typography.bodySmall, color = onCard.copy(alpha = 0.9f))
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = stringResource(R.string.cd_open_maps), modifier = Modifier.size(14.dp), tint = onCard.copy(alpha = 0.7f))
                     }
                 }
             }
@@ -703,7 +751,7 @@ private fun BatteryBar(percent: Int, onCard: Color) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Default.BatteryChargingFull, contentDescription = null, modifier = Modifier.size(18.dp), tint = onCard)
-                Text("Drive battery", style = MaterialTheme.typography.bodyMedium, color = onCard.copy(alpha = 0.85f))
+                Text(stringResource(R.string.home_drive_battery), style = MaterialTheme.typography.bodyMedium, color = onCard.copy(alpha = 0.85f))
             }
             Text("$animatedPct%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = onCard)
         }
@@ -779,13 +827,13 @@ private fun RefreshButton(loading: Boolean, onRefresh: () -> Unit, tint: Color =
         )
         Icon(
             Icons.Default.Refresh,
-            contentDescription = "Refreshing",
+            contentDescription = stringResource(R.string.home_refreshing_cd),
             modifier = Modifier.rotate(angle).size(24.dp),
             tint = tint,
         )
     } else {
         IconButton(onClick = onRefresh) {
-            Icon(Icons.Default.Refresh, contentDescription = "Refresh status", tint = tint)
+            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.home_refresh_status), tint = tint)
         }
     }
 }
@@ -801,7 +849,7 @@ private fun ActivityLogCard(log: List<LogEntry>) {
         Column(Modifier.padding(vertical = 6.dp)) {
             if (log.isEmpty()) {
                 Text(
-                    "No activity yet. Enable AutoLock and try \"Simulate leaving\".",
+                    stringResource(R.string.home_no_activity),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
@@ -873,11 +921,11 @@ private fun PulsingDot(color: Color) {
     )
 }
 
-private fun relativeTime(epochMs: Long, now: Long = System.currentTimeMillis()): String {
+private fun relativeTime(epochMs: Long, now: Long, context: android.content.Context): String {
     val diff = now - epochMs
     return when {
-        diff < 45_000 -> "just now"
-        diff < 3_600_000 -> "${(diff / 60_000).coerceAtLeast(1)} min ago"
+        diff < 45_000 -> context.getString(R.string.time_just_now)
+        diff < 3_600_000 -> context.getString(R.string.time_min_ago, (diff / 60_000).coerceAtLeast(1).toInt())
         diff < 86_400_000 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epochMs))
         else -> SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(epochMs))
     }

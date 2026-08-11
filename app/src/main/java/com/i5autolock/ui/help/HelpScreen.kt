@@ -24,8 +24,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.i5autolock.R
 import com.i5autolock.ui.components.HeroBanner
 import com.i5autolock.ui.theme.ambientBackground
 
@@ -41,11 +43,11 @@ fun HelpScreen(onBack: () -> Unit) {
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Help & how it works") },
+                title = { Text(stringResource(R.string.help_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -59,12 +61,10 @@ fun HelpScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             HeroBanner(
-                title = "How it works",
-                subtitle = "AutoLock does one job: it notices when you've left your (unlocked) " +
-                    "car and locks it for you. This page explains every setting so you can tune " +
-                    "it with confidence.",
+                title = stringResource(R.string.help_hero_title),
+                subtitle = stringResource(R.string.help_hero_body),
                 icon = Icons.AutoMirrored.Filled.HelpOutline,
-                eyebrow = "Guide",
+                eyebrow = stringResource(R.string.help_hero_eyebrow),
             )
 
             HelpSection(

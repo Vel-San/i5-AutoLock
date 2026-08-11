@@ -35,6 +35,8 @@ data class VehicleStatusUi(
     val error: String? = null,
     /** True when the session expired and the user needs to sign in again. */
     val needsReauth: Boolean = false,
+    /** True when the 12V battery is below the user's warning threshold. */
+    val lowVoltage: Boolean = false,
 )
 
 @HiltViewModel
@@ -59,6 +61,11 @@ class HomeViewModel @Inject constructor(
     private val _vehicleStatus = MutableStateFlow(VehicleStatusUi())
     val vehicleStatus: StateFlow<VehicleStatusUi> = _vehicleStatus
 
+    // Transient one-shot messages surfaced as a toast (rate-limit, low 12V, throttle…).
+    private val _notice = MutableStateFlow<String?>(null)
+    val notice: StateFlow<String?> = _notice
+    fun clearNotice() { _notice.value = null }
+
     // Guard against hammering the (rate-limited) BlueLink API with rapid manual refreshes.
     private var lastFetchAtMs = 0L
 
@@ -68,11 +75,16 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             statusCache.cached.collect { c ->
                 val cached = c.toVehicleStatus() ?: return@collect
+                val s = settingsRepo.settings.first()
                 _vehicleStatus.update { ui ->
-                    if (ui.loading) ui else ui.copy(
-                        status = cached.mergedOnto(ui.status),
-                        lastRefreshEpochMs = c.updatedAtEpochMs.takeIf { it > 0 } ?: ui.lastRefreshEpochMs,
-                    )
+                    if (ui.loading) ui else {
+                        val merged = cached.mergedOnto(ui.status)
+                        ui.copy(
+                            status = merged,
+                            lastRefreshEpochMs = c.updatedAtEpochMs.takeIf { it > 0 } ?: ui.lastRefreshEpochMs,
+                            lowVoltage = isLowVoltage(merged, s),
+                        )
+                    }
                 }
             }
         }
@@ -154,12 +166,18 @@ class HomeViewModel @Inject constructor(
             val snap = metrics.snapshot.value
             if (snap.isRateLimited()) {
                 val secs = ((snap.rateLimitedUntilEpochMs!! - System.currentTimeMillis()) / 1000).coerceAtLeast(1)
-                _vehicleStatus.update { it.copy(loading = false, error = "Rate-limited — try again in ${secs}s.") }
+                val msg = "Rate-limited — try again in ${secs}s."
+                _vehicleStatus.update { it.copy(loading = false, error = msg) }
+                _notice.value = msg
                 return@launch
             }
             val now = System.currentTimeMillis()
-            if (now - lastFetchAtMs < MIN_REFRESH_INTERVAL_MS) {
-                _vehicleStatus.update { it.copy(loading = false, error = "Just refreshed — give it a few seconds.") }
+            val minMs = s.minRefreshSeconds.coerceAtLeast(1) * 1000L
+            if (now - lastFetchAtMs < minMs) {
+                val waitS = ((minMs - (now - lastFetchAtMs)) / 1000 + 1)
+                val msg = "Please wait ${waitS}s before refreshing again."
+                _vehicleStatus.update { it.copy(loading = false, error = msg) }
+                _notice.value = msg
                 return@launch
             }
             lastFetchAtMs = now
@@ -177,6 +195,7 @@ class HomeViewModel @Inject constructor(
                 // Merge so a partial (force-refresh) response never wipes existing detail — and the
                 // notification/widget summary is built from the merged status too.
                 val merged = fresh.mergedOnto(_vehicleStatus.value.status)
+                val low = isLowVoltage(merged, s)
                 _vehicleStatus.update { ui ->
                     ui.copy(
                         loading = false,
@@ -184,8 +203,10 @@ class HomeViewModel @Inject constructor(
                         needsReauth = false,
                         status = merged,
                         lastRefreshEpochMs = System.currentTimeMillis(),
+                        lowVoltage = low,
                     )
                 }
+                if (low) merged.twelveVoltPercent?.let { _notice.value = "12V battery low ($it%). Consider charging or driving soon." }
                 statusCache.saveStatus(merged, StatusSummary.build(merged, s.notificationFields))
             }
             .onFailure { e ->
@@ -194,7 +215,6 @@ class HomeViewModel @Inject constructor(
             }
     }
 
-    private companion object {
-        const val MIN_REFRESH_INTERVAL_MS = 6_000L
-    }
+    private fun isLowVoltage(status: VehicleStatus, s: AppSettings): Boolean =
+        s.lowVoltageAlert && (status.twelveVoltPercent?.let { it < s.lowVoltageThreshold } ?: false)
 }

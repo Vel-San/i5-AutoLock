@@ -51,9 +51,20 @@ data class AppSettings(
     val autoRefreshOnOpen: Boolean = true,
     // Periodic background status refresh in minutes (0 = off; min effective 15 via WorkManager).
     val autoRefreshIntervalMinutes: Int = 0,
+    // Minimum seconds between manual refreshes (rate-limit friendliness).
+    val minRefreshSeconds: Int = 6,
     val hapticOnLock: Boolean = true,
     val soundOnLock: Boolean = false,
+    // Optional custom lock sound (content URI). Null = the built-in EV chime.
+    val customLockSoundUri: String? = null,
     val rememberParkedLocation: Boolean = false,
+
+    // Low 12V battery warning.
+    val lowVoltageAlert: Boolean = true,
+    val lowVoltageThreshold: Int = 40,
+
+    // Show a launcher badge for AutoLock notifications (off by default; the notification suffices).
+    val showAppBadge: Boolean = false,
 
     // Optional active-hours schedule (minutes from midnight). Supports overnight ranges.
     val scheduleEnabled: Boolean = false,

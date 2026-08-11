@@ -37,6 +37,11 @@ class SettingsRepository @Inject constructor(
         val PIN_NOTIF = booleanPreferencesKey("pin_notif")
         val AUTO_REFRESH_OPEN = booleanPreferencesKey("auto_refresh_open")
         val AUTO_REFRESH_INTERVAL = intPreferencesKey("auto_refresh_interval")
+        val MIN_REFRESH_SECONDS = intPreferencesKey("min_refresh_seconds")
+        val CUSTOM_SOUND_URI = stringPreferencesKey("custom_sound_uri")
+        val LOW_VOLT_ALERT = booleanPreferencesKey("low_volt_alert")
+        val LOW_VOLT_THRESHOLD = intPreferencesKey("low_volt_threshold")
+        val SHOW_APP_BADGE = booleanPreferencesKey("show_app_badge")
         val HAPTIC_ON_LOCK = booleanPreferencesKey("haptic_on_lock")
         val SOUND_ON_LOCK = booleanPreferencesKey("sound_on_lock")
         val REMEMBER_PARKED = booleanPreferencesKey("remember_parked")
@@ -79,6 +84,11 @@ class SettingsRepository @Inject constructor(
         pinNotification = this[Keys.PIN_NOTIF] ?: true,
         autoRefreshOnOpen = this[Keys.AUTO_REFRESH_OPEN] ?: true,
         autoRefreshIntervalMinutes = this[Keys.AUTO_REFRESH_INTERVAL] ?: 0,
+        minRefreshSeconds = this[Keys.MIN_REFRESH_SECONDS] ?: 6,
+        customLockSoundUri = this[Keys.CUSTOM_SOUND_URI],
+        lowVoltageAlert = this[Keys.LOW_VOLT_ALERT] ?: true,
+        lowVoltageThreshold = this[Keys.LOW_VOLT_THRESHOLD] ?: 40,
+        showAppBadge = this[Keys.SHOW_APP_BADGE] ?: false,
         hapticOnLock = this[Keys.HAPTIC_ON_LOCK] ?: true,
         soundOnLock = this[Keys.SOUND_ON_LOCK] ?: false,
         rememberParkedLocation = this[Keys.REMEMBER_PARKED] ?: false,
@@ -122,6 +132,11 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.PIN_NOTIF] = next.pinNotification
             prefs[Keys.AUTO_REFRESH_OPEN] = next.autoRefreshOnOpen
             prefs[Keys.AUTO_REFRESH_INTERVAL] = next.autoRefreshIntervalMinutes
+            prefs[Keys.MIN_REFRESH_SECONDS] = next.minRefreshSeconds
+            next.customLockSoundUri?.let { prefs[Keys.CUSTOM_SOUND_URI] = it } ?: prefs.remove(Keys.CUSTOM_SOUND_URI)
+            prefs[Keys.LOW_VOLT_ALERT] = next.lowVoltageAlert
+            prefs[Keys.LOW_VOLT_THRESHOLD] = next.lowVoltageThreshold
+            prefs[Keys.SHOW_APP_BADGE] = next.showAppBadge
             prefs[Keys.HAPTIC_ON_LOCK] = next.hapticOnLock
             prefs[Keys.SOUND_ON_LOCK] = next.soundOnLock
             prefs[Keys.REMEMBER_PARKED] = next.rememberParkedLocation

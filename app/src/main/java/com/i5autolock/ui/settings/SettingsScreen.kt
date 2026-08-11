@@ -2,8 +2,11 @@ package com.i5autolock.ui.settings
 
 import android.content.Context
 import android.content.Intent
+import android.media.RingtoneManager
 import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,14 +38,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.i5autolock.R
 import com.i5autolock.data.bluelink.Region
 import com.i5autolock.data.settings.NotificationField
 import com.i5autolock.data.settings.RunMode
@@ -63,16 +69,24 @@ fun SettingsScreen(
     val extras by viewModel.extras.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    // Ringtone/sound picker for the custom lock sound.
+    val soundPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            viewModel.setCustomLockSoundUri(uri?.toString())
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize().background(ambientBackground()),
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -86,47 +100,47 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             HeroBanner(
-                title = "Settings",
-                subtitle = "Tune how AutoLock detects you leaving and how it locks your car.",
+                title = stringResource(R.string.settings_title),
+                subtitle = stringResource(R.string.settings_hero_subtitle),
                 icon = Icons.Default.Tune,
-                eyebrow = "Configure",
+                eyebrow = stringResource(R.string.settings_hero_eyebrow),
             )
 
             // Safety / run mode.
-            Section("Safety") {
+            Section(stringResource(R.string.sec_safety)) {
                 RowToggle(
-                    title = "Demo mode",
-                    subtitle = "Use a simulated car — no account needed.",
+                    title = stringResource(R.string.set_demo_title),
+                    subtitle = stringResource(R.string.set_demo_sub),
                     checked = settings.demoMode,
                     onCheckedChange = viewModel::setDemoMode,
                 )
-                Text("Locking behaviour", fontWeight = FontWeight.Medium)
-                RunModeOption("Dry run (never sends a real lock)", settings.runMode == RunMode.DRY_RUN) {
+                Text(stringResource(R.string.set_locking_behaviour), fontWeight = FontWeight.Medium)
+                RunModeOption(stringResource(R.string.set_dry_run), settings.runMode == RunMode.DRY_RUN) {
                     viewModel.setRunMode(RunMode.DRY_RUN)
                 }
-                RunModeOption("Armed (locks for real)", settings.runMode == RunMode.ARMED) {
+                RunModeOption(stringResource(R.string.set_armed), settings.runMode == RunMode.ARMED) {
                     viewModel.setRunMode(RunMode.ARMED)
                 }
                 RowToggle(
-                    title = "Confirm before locking",
-                    subtitle = "Ask via notification instead of locking automatically.",
+                    title = stringResource(R.string.set_confirm_title),
+                    subtitle = stringResource(R.string.set_confirm_sub),
                     checked = settings.requireConfirmationBeforeLock,
                     onCheckedChange = viewModel::setRequireConfirmation,
                 )
             }
 
             // Account.
-            Section("Account") {
-                Text(settings.accountEmail ?: "Not signed in", fontWeight = FontWeight.Medium)
+            Section(stringResource(R.string.sec_account)) {
+                Text(settings.accountEmail ?: stringResource(R.string.set_not_signed_in), fontWeight = FontWeight.Medium)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (extras.signedIn) {
-                        OutlinedButton(onClick = viewModel::signOut) { Text("Sign out") }
-                        Button(onClick = viewModel::loadVehicles) { Text("Reload vehicles") }
+                        OutlinedButton(onClick = viewModel::signOut) { Text(stringResource(R.string.set_sign_out)) }
+                        Button(onClick = viewModel::loadVehicles) { Text(stringResource(R.string.set_reload_vehicles)) }
                     } else {
-                        Button(onClick = onLogin) { Text("Sign in") }
+                        Button(onClick = onLogin) { Text(stringResource(R.string.action_sign_in)) }
                     }
                 }
-                Text("Region", fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.set_region), fontWeight = FontWeight.Medium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Region.entries.forEach { region ->
                         FilterChip(
@@ -139,12 +153,12 @@ fun SettingsScreen(
             }
 
             // Vehicle.
-            Section("Vehicle") {
+            Section(stringResource(R.string.sec_vehicle)) {
                 if (extras.loadingVehicles) {
                     CircularProgressIndicator()
                 } else if (extras.vehicles.isEmpty()) {
-                    Text("No vehicles loaded.", style = MaterialTheme.typography.bodyMedium)
-                    OutlinedButton(onClick = viewModel::loadVehicles) { Text("Load vehicles") }
+                    Text(stringResource(R.string.set_no_vehicles), style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = viewModel::loadVehicles) { Text(stringResource(R.string.set_load_vehicles)) }
                 } else {
                     extras.vehicles.forEach { v ->
                         SelectableRow(
@@ -158,12 +172,12 @@ fun SettingsScreen(
             }
 
             // Bluetooth trigger.
-            Section("Car Bluetooth") {
+            Section(stringResource(R.string.sec_car_bt)) {
                 Text(
-                    settings.carBluetoothName?.let { "Selected: $it" } ?: "Pick your car's Bluetooth device.",
+                    settings.carBluetoothName?.let { stringResource(R.string.set_car_bt_selected, it) } ?: stringResource(R.string.set_car_bt_pick),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                OutlinedButton(onClick = viewModel::refreshDevices) { Text("Refresh paired devices") }
+                OutlinedButton(onClick = viewModel::refreshDevices) { Text(stringResource(R.string.set_refresh_devices)) }
                 extras.pairedDevices.forEach { d ->
                     SelectableRow(
                         title = d.name,
@@ -175,27 +189,27 @@ fun SettingsScreen(
             }
 
             // Detection.
-            Section("Detection") {
+            Section(stringResource(R.string.sec_detection)) {
                 RowToggle(
-                    "Bluetooth disconnect",
-                    "Primary trigger when you leave the car.",
+                    stringResource(R.string.set_det_bt_title),
+                    stringResource(R.string.set_det_bt_sub),
                     settings.useBluetoothTrigger,
                     viewModel::setUseBluetooth,
                 )
                 RowToggle(
-                    "Activity confirmation",
-                    "Confirm you switched from driving to walking.",
+                    stringResource(R.string.set_det_activity_title),
+                    stringResource(R.string.set_det_activity_sub),
                     settings.useActivityRecognition,
                     viewModel::setUseActivity,
                 )
                 RowToggle(
-                    "Geofence confirmation",
-                    "Only lock once you've walked away from the car.",
+                    stringResource(R.string.set_det_geo_title),
+                    stringResource(R.string.set_det_geo_sub),
                     settings.useGeofence,
                     viewModel::setUseGeofence,
                 )
                 if (settings.useGeofence) {
-                    Text("Radius: ${settings.geofenceRadiusMeters} m")
+                    Text(stringResource(R.string.set_geo_radius, settings.geofenceRadiusMeters))
                     Slider(
                         value = settings.geofenceRadiusMeters.toFloat(),
                         onValueChange = { viewModel.setGeofenceRadius(it.toInt()) },
@@ -205,30 +219,64 @@ fun SettingsScreen(
             }
 
             // Timing.
-            Section("Timing") {
-                Text("Grace period: ${settings.graceSeconds}s")
+            Section(stringResource(R.string.sec_timing)) {
+                Text(stringResource(R.string.set_grace, settings.graceSeconds))
                 Slider(
                     value = settings.graceSeconds.toFloat(),
                     onValueChange = { viewModel.setGrace(it.toInt()) },
                     valueRange = 5f..180f,
                 )
+                Text(stringResource(R.string.set_min_refresh_title), fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(R.string.set_min_refresh_sub),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(stringResource(R.string.set_min_refresh_value, settings.minRefreshSeconds))
+                Slider(
+                    value = settings.minRefreshSeconds.toFloat(),
+                    onValueChange = { viewModel.setMinRefreshSeconds(it.toInt()) },
+                    valueRange = 3f..30f,
+                )
+            }
+
+            // Low 12V battery warning.
+            Section(stringResource(R.string.sec_low_volt)) {
+                RowToggle(
+                    stringResource(R.string.set_low_volt_title),
+                    stringResource(R.string.set_low_volt_sub),
+                    settings.lowVoltageAlert,
+                    viewModel::setLowVoltageAlert,
+                )
+                if (settings.lowVoltageAlert) {
+                    Text(stringResource(R.string.set_low_volt_threshold, settings.lowVoltageThreshold))
+                    Slider(
+                        value = settings.lowVoltageThreshold.toFloat(),
+                        onValueChange = { viewModel.setLowVoltageThreshold(it.toInt()) },
+                        valueRange = 10f..90f,
+                    )
+                }
             }
 
             // Behaviour.
-            Section("Behaviour") {
+            Section(stringResource(R.string.sec_behaviour)) {
                 RowToggle(
-                    "Auto-refresh on open",
-                    "Fetch the latest vehicle status when you open the app.",
+                    stringResource(R.string.set_auto_refresh_open_title),
+                    stringResource(R.string.set_auto_refresh_open_sub),
                     settings.autoRefreshOnOpen,
                     viewModel::setAutoRefreshOnOpen,
                 )
-                Text("Background auto-check", fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.set_bg_check_title), fontWeight = FontWeight.Medium)
                 Text(
-                    "Refresh the vehicle status in the background on a schedule.",
+                    stringResource(R.string.set_bg_check_sub),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(0 to "Off", 15 to "15m", 30 to "30m", 60 to "60m").forEach { (mins, label) ->
+                    listOf(
+                        0 to stringResource(R.string.set_off),
+                        15 to stringResource(R.string.set_15m),
+                        30 to stringResource(R.string.set_30m),
+                        60 to stringResource(R.string.set_60m),
+                    ).forEach { (mins, label) ->
                         FilterChip(
                             selected = settings.autoRefreshIntervalMinutes == mins,
                             onClick = { viewModel.setAutoRefreshInterval(mins) },
@@ -237,41 +285,81 @@ fun SettingsScreen(
                     }
                 }
                 RowToggle(
-                    "Vibrate on lock",
-                    "Buzz when the car is locked.",
+                    stringResource(R.string.set_vibrate_title),
+                    stringResource(R.string.set_vibrate_sub),
                     settings.hapticOnLock,
                     viewModel::setHapticOnLock,
                 )
                 RowToggle(
-                    "Sound on lock",
-                    "Play a short sound when the car is locked.",
+                    stringResource(R.string.set_sound_title),
+                    stringResource(R.string.set_sound_sub),
                     settings.soundOnLock,
                     viewModel::setSoundOnLock,
                 )
+                if (settings.soundOnLock) {
+                    val soundLabel = remember(settings.customLockSoundUri) {
+                        settings.customLockSoundUri?.let { uriStr ->
+                            runCatching {
+                                RingtoneManager.getRingtone(context, Uri.parse(uriStr))?.getTitle(context)
+                            }.getOrNull()
+                        }
+                    }
+                    Text(
+                        stringResource(R.string.set_sound_current, soundLabel ?: stringResource(R.string.set_sound_default)),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, context.getString(R.string.set_sound_pick_title))
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, false)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                                settings.customLockSoundUri?.let {
+                                    putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(it))
+                                }
+                            }
+                            soundPicker.launch(intent)
+                        }) { Text(stringResource(R.string.set_sound_choose)) }
+                        if (settings.customLockSoundUri != null) {
+                            OutlinedButton(onClick = { viewModel.setCustomLockSoundUri(null) }) {
+                                Text(stringResource(R.string.set_sound_use_default))
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { viewModel.testLockSound() }) {
+                            Text(stringResource(R.string.set_sound_test))
+                        }
+                        OutlinedButton(onClick = { viewModel.playDefaultSound() }) {
+                            Text(stringResource(R.string.set_sound_play_default))
+                        }
+                    }
+                }
                 RowToggle(
-                    "Remember parked location",
-                    "Show where you left the car on the status card.",
+                    stringResource(R.string.set_remember_title),
+                    stringResource(R.string.set_remember_sub),
                     settings.rememberParkedLocation,
                     viewModel::setRememberParkedLocation,
                 )
             }
 
             // Active-hours schedule.
-            Section("Schedule") {
+            Section(stringResource(R.string.sec_schedule)) {
                 RowToggle(
-                    "Only during set hours",
-                    "AutoLock stays idle outside this time window.",
+                    stringResource(R.string.schedule_enabled_title),
+                    stringResource(R.string.schedule_enabled_sub),
                     settings.scheduleEnabled,
                     viewModel::setScheduleEnabled,
                 )
                 if (settings.scheduleEnabled) {
-                    Text("From ${formatMinutes(settings.scheduleStartMinutes)}")
+                    Text(stringResource(R.string.schedule_from, formatMinutes(settings.scheduleStartMinutes)))
                     Slider(
                         value = settings.scheduleStartMinutes.toFloat(),
                         onValueChange = { viewModel.setScheduleStart((it / 15).toInt() * 15) },
                         valueRange = 0f..1425f,
                     )
-                    Text("Until ${formatMinutes(settings.scheduleEndMinutes)}")
+                    Text(stringResource(R.string.schedule_until, formatMinutes(settings.scheduleEndMinutes)))
                     Slider(
                         value = settings.scheduleEndMinutes.toFloat(),
                         onValueChange = { viewModel.setScheduleEnd((it / 15).toInt() * 15) },
@@ -281,27 +369,33 @@ fun SettingsScreen(
             }
 
             // Notification.
-            Section("Notification") {
+            Section(stringResource(R.string.sec_notification)) {
                 RowToggle(
-                    title = "Pin the notification",
-                    subtitle = "Keep the \"watching\" notification stuck — it re-appears if swiped away.",
+                    title = stringResource(R.string.set_pin_title),
+                    subtitle = stringResource(R.string.set_pin_sub),
                     checked = settings.pinNotification,
                     onCheckedChange = viewModel::setPinNotification,
                 )
                 RowToggle(
-                    title = "\"Lock now\" button",
-                    subtitle = "Show a button to lock immediately, skipping the countdown.",
+                    title = stringResource(R.string.set_badge_title),
+                    subtitle = stringResource(R.string.set_badge_sub),
+                    checked = settings.showAppBadge,
+                    onCheckedChange = viewModel::setShowAppBadge,
+                )
+                RowToggle(
+                    title = stringResource(R.string.set_locknow_title),
+                    subtitle = stringResource(R.string.set_locknow_sub),
                     checked = settings.showLockNowAction,
                     onCheckedChange = viewModel::setShowLockNowAction,
                 )
                 RowToggle(
-                    title = "Show vehicle status",
-                    subtitle = "Add a live status line to the ongoing notification.",
+                    title = stringResource(R.string.set_showstatus_title),
+                    subtitle = stringResource(R.string.set_showstatus_sub),
                     checked = settings.showStatusInNotification,
                     onCheckedChange = viewModel::setShowStatusInNotification,
                 )
                 if (settings.showStatusInNotification) {
-                    Text("Show these details:", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.set_show_details), fontWeight = FontWeight.Medium)
                     NotificationField.entries.forEach { field ->
                         Row(
                             Modifier.fillMaxWidth(),
@@ -319,8 +413,8 @@ fun SettingsScreen(
             }
 
             // Appearance.
-            Section("Appearance") {
-                Text("Theme", fontWeight = FontWeight.Medium)
+            Section(stringResource(R.string.sec_appearance)) {
+                Text(stringResource(R.string.set_theme), fontWeight = FontWeight.Medium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ThemeMode.entries.forEach { mode ->
                         FilterChip(
@@ -331,55 +425,52 @@ fun SettingsScreen(
                     }
                 }
                 RowToggle(
-                    title = "Dynamic color",
-                    subtitle = "Use colors from your wallpaper (Android 12+).",
+                    title = stringResource(R.string.set_dynamic_title),
+                    subtitle = stringResource(R.string.set_dynamic_sub),
                     checked = settings.dynamicColor,
                     onCheckedChange = viewModel::setDynamicColor,
                 )
             }
 
             // Keep running.
-            Section("Keep AutoLock running") {
+            Section(stringResource(R.string.sec_keep_running)) {
                 Text(
-                    "Phones aggressively kill background apps. So auto-locking fires reliably:",
+                    stringResource(R.string.set_keep_intro),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "\u2022 Allow unrestricted / unmonitored battery use\n" +
-                        "\u2022 Remove any \"restrict background\" limit\n" +
-                        "\u2022 Keep AutoLock's notifications enabled\n" +
-                        "\u2022 On Samsung/Xiaomi/Huawei, add AutoLock to \"never sleeping apps\"",
+                    stringResource(R.string.set_keep_tips),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(onClick = { openBatterySettings(context) }, modifier = Modifier.weight(1f)) {
-                        Text("Battery settings")
+                        Text(stringResource(R.string.set_battery_settings))
                     }
                     OutlinedButton(onClick = { openAppInfo(context) }, modifier = Modifier.weight(1f)) {
-                        Text("App info")
+                        Text(stringResource(R.string.set_app_info))
                     }
                 }
             }
 
             // Diagnostics.
-            Section("Diagnostics") {
+            Section(stringResource(R.string.sec_diagnostics)) {
                 Text(
-                    "See detailed API metrics: call durations, success rate, rate-limit status, and logs.",
+                    stringResource(R.string.set_diag_intro),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Button(onClick = onStats, modifier = Modifier.fillMaxWidth()) {
-                    Text("Open API statistics")
+                    Text(stringResource(R.string.set_open_stats))
                 }
             }
 
             // Help.
-            Section("Help") {
+            Section(stringResource(R.string.sec_help)) {
                 Text(
-                    "New here? The help page explains every setting and how automatic locking works.",
+                    stringResource(R.string.set_help_intro),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 OutlinedButton(onClick = onHelp, modifier = Modifier.fillMaxWidth()) {
-                    Text("Open help & tutorial")
+                    Text(stringResource(R.string.set_open_help))
                 }
             }
         }

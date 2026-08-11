@@ -149,6 +149,9 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   more battery-friendly for long idle periods.
 - US/CA/AU: routed to `UnsupportedRegionClient` (fails clearly) until real region endpoints/clients are
   implemented — the architecture routes by region in `BlueLinkProvider`.
+- Localization: all interactive screens (Home, Settings, Login, Stats, Permissions, Onboarding) +
+  notifications are in `res/values/strings.xml` with a full `values-es`. Only the Help screen's long-form
+  tutorial *body* paragraphs remain inline English (its chrome/hero are localized).
 - EU endpoint/stamp values need live verification against the reference projects.
 
 ## 9. Changelog (append notable changes)
@@ -364,3 +367,42 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   - Tests: `CachedStatusTest`, `UnsupportedRegionClientTest`.
   - Still deferred: real cert-pin hashes, a bundled/downloadable font (needs assets/certs), and a
     battery-friendly background `GeofencingClient` (needs arrival-capture).
+- Round 10 (background geofence + full localization):
+  - Background geofence: `data/detection/GeofenceManager` (Play `GeofencingClient`, EXIT trigger,
+    `FLAG_MUTABLE` PendingIntent, `@SuppressLint MissingPermission`, needs background-location) registers
+    around the car on Bluetooth **arrival** (`BluetoothStateReceiver` ACL_CONNECTED captures location).
+    `receiver/GeofenceReceiver` fires `AutoLockService.start` on EXIT (battery-friendly "you left"
+    trigger, no polling/persistent service), then removes the one-shot geofence. Manifest receiver added.
+  - Localization: extracted all strings for Home, Settings, Login, Stats, Permissions, Onboarding, and
+    the notifications into `res/values/strings.xml`, with a complete `res/values-es` (Spanish). Notif
+    strings use `context.getString`; `relativeTime(epochMs, now, context)` localizes "just now"/"min ago".
+    The Help screen's chrome/hero are localized; its long-form tutorial body paragraphs remain inline.
+- Round 11 (custom sound, 12V alert, refresh guard, app badge):
+  - Custom lock sound: `data/sound/LockSound` (custom `RingtoneManager` URI, else `EvChime`, chime
+    fallback). `AppSettings.customLockSoundUri`; Settings → Notification "Sound on lock" now has a
+    ringtone picker (`ACTION_RINGTONE_PICKER`), "Use default", "Test" (`SettingsViewModel.testLockSound`)
+    and "Play default" (`playDefaultSound`). Service plays via `LockSound.play`.
+  - Low 12V warning: `AppSettings.lowVoltageAlert`/`lowVoltageThreshold`; `HomeViewModel` flags
+    `VehicleStatusUi.lowVoltage` when `twelveVoltPercent < threshold`, shows a tertiary Home banner
+    (`LowVoltageBanner`) + one-shot toast (`notice` flow). Settings section "Low 12V battery warning"
+    (toggle + threshold slider).
+  - Configurable refresh guard: `AppSettings.minRefreshSeconds` replaces the hardcoded 6s throttle in
+    `HomeViewModel.refreshStatus`; rate-limit/throttle now also surface a toast via the `notice` flow.
+    Settings → Timing slider (3–30s).
+  - App badge toggle: `AppSettings.showAppBadge` (default off). `service/NotificationChannels.ensure`
+    single-sources the (silent) channel and only recreates it when `canShowBadge()` differs (badge is a
+    channel property). `AutoLockApp` (channel id bumped to `_v4`) reads the saved pref via a Hilt
+    `EntryPoint`; `SettingsViewModel.setShowAppBadge` recreates the channel + re-asserts watch. Settings
+    → Notification toggle.
+- Round 12 (notification icon + session expiry):
+  - Status-bar icon: added a dedicated `res/drawable/ic_stat_autolock.xml` (bold white padlock that
+    fills the 24dp canvas, evenOdd keyhole) and pointed both `AutoLockNotification` builders' `setSmallIcon`
+    at it. Previously used `ic_launcher_foreground` (large safe-zone padding + scaled 0.82), which the
+    system rendered tiny in the collapsed status bar.
+  - Session expiry readout: Stats → Session now shows "Session expires" with a live countdown + clock
+    time, sourced from the stored **access token** `expiresAtEpochMs` (`StatsViewModel.sessionExpiresAtEpochMs`,
+    injects `SecureStore`; `StatsScreen.sessionExpiryText` with a 30s ticking clock). The refresh token's
+    own expiry is NOT exposed by Hyundai's OAuth (the token response only returns `expires_in` for the
+    access token), so a refresh-token countdown isn't possible — the session line is the honest proxy.
+
+

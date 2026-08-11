@@ -27,6 +27,8 @@ class BluetoothStateReceiver : BroadcastReceiver() {
     @Inject lateinit var settingsRepo: SettingsRepository
     @Inject lateinit var controller: AutoLockController
     @Inject lateinit var log: ActivityLog
+    @Inject lateinit var locationHelper: com.i5autolock.data.location.LocationHelper
+    @Inject lateinit var geofenceManager: com.i5autolock.data.detection.GeofenceManager
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -50,6 +52,14 @@ class BluetoothStateReceiver : BroadcastReceiver() {
                     }
                     BluetoothDevice.ACTION_ACL_CONNECTED -> {
                         controller.cancel()
+                        // Arrival: register a battery-friendly geofence around the car so leaving is
+                        // detected even without polling or a persistent service.
+                        if (settings.useGeofence) {
+                            locationHelper.currentLocation()?.let { loc ->
+                                geofenceManager.register(loc.latitude, loc.longitude, settings.geofenceRadiusMeters)
+                                log.add(LogLevel.INFO, "Arrived at the car — geofence armed.")
+                            }
+                        }
                     }
                 }
             } finally {

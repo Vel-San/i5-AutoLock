@@ -114,6 +114,11 @@
             android:name=".receiver.ActivityTransitionReceiver"
             android:exported="false" />
 
+        <!-- Geofence exit callback (battery-friendly "you left the car" trigger). -->
+        <receiver
+            android:name=".receiver.GeofenceReceiver"
+            android:exported="false" />
+
         <!-- WorkManager is initialised on-demand via Hilt (see AutoLockApp). -->
         <provider
             android:name="androidx.startup.InitializationProvider"

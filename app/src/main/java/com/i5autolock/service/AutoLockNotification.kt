@@ -38,10 +38,10 @@ object AutoLockNotification {
         )
         // Show the live vehicle status as the main line when we have it; fall back otherwise.
         val text = statusSummary?.takeIf { it.isNotBlank() }
-            ?: "Monitoring for you leaving the car."
+            ?: context.getString(R.string.notif_watching_body)
         return NotificationCompat.Builder(context, AutoLockApp.CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("AutoLock is watching")
+            .setSmallIcon(R.drawable.ic_stat_autolock)
+            .setContentTitle(context.getString(R.string.notif_watching_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setOngoing(true)
@@ -49,7 +49,7 @@ object AutoLockNotification {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(contentIntent)
             .apply { if (pinned) setDeleteIntent(reviveIntent) }
-            .addAction(0, "Turn off", stopIntent)
+            .addAction(0, context.getString(R.string.notif_turn_off), stopIntent)
             .build()
     }
 
@@ -68,14 +68,14 @@ object AutoLockNotification {
         )
 
         val (title, baseText) = when (state) {
-            DetectionState.CONFIRMING -> "Checking if you left the car" to "Confirming you've walked away…"
-            DetectionState.GRACE -> "Locking soon" to "Locking in ${graceRemaining}s. Tap to cancel."
-            DetectionState.VERIFYING -> "Verifying" to "Reading vehicle status…"
-            DetectionState.AWAITING_CONFIRM -> "Confirm lock" to "Tap \"Lock now\" to lock your car."
-            DetectionState.LOCKING -> "Locking" to "Sending lock command…"
-            DetectionState.LOCKED -> "Locked" to "Your car has been locked."
-            DetectionState.SKIPPED -> "No action needed" to "Car was already secure."
-            else -> "AutoLock" to "Watching for you leaving the car."
+            DetectionState.CONFIRMING -> context.getString(R.string.notif_confirming_title) to context.getString(R.string.notif_confirming_body)
+            DetectionState.GRACE -> context.getString(R.string.notif_grace_title) to context.getString(R.string.notif_grace_body, graceRemaining)
+            DetectionState.VERIFYING -> context.getString(R.string.notif_verifying_title) to context.getString(R.string.notif_verifying_body)
+            DetectionState.AWAITING_CONFIRM -> context.getString(R.string.notif_confirm_title) to context.getString(R.string.notif_confirm_body)
+            DetectionState.LOCKING -> context.getString(R.string.notif_locking_title) to context.getString(R.string.notif_locking_body)
+            DetectionState.LOCKED -> context.getString(R.string.notif_locked_title) to context.getString(R.string.notif_locked_body)
+            DetectionState.SKIPPED -> context.getString(R.string.notif_skipped_title) to context.getString(R.string.notif_skipped_body)
+            else -> context.getString(R.string.notif_default_title) to context.getString(R.string.notif_default_body)
         }
         val text = if (!statusSummary.isNullOrBlank()) "$baseText\n$statusSummary" else baseText
 
@@ -85,7 +85,7 @@ object AutoLockNotification {
         val canLockNow = showLockNow && waiting
 
         val builder = NotificationCompat.Builder(context, AutoLockApp.CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_autolock)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -96,7 +96,7 @@ object AutoLockNotification {
         if (waiting) {
             builder.addAction(
                 0,
-                "Cancel",
+                context.getString(R.string.notif_cancel),
                 PendingIntent.getService(
                     context,
                     1,
@@ -108,7 +108,7 @@ object AutoLockNotification {
         if (canLockNow) {
             builder.addAction(
                 0,
-                "Lock now",
+                context.getString(R.string.notif_lock_now),
                 PendingIntent.getService(
                     context,
                     2,

@@ -98,6 +98,24 @@ class SettingsViewModel @Inject constructor(
     }
     fun setHapticOnLock(enabled: Boolean) = update { it.copy(hapticOnLock = enabled) }
     fun setSoundOnLock(enabled: Boolean) = update { it.copy(soundOnLock = enabled) }
+    fun setCustomLockSoundUri(uri: String?) = update { it.copy(customLockSoundUri = uri) }
+    fun setLowVoltageAlert(enabled: Boolean) = update { it.copy(lowVoltageAlert = enabled) }
+    fun setLowVoltageThreshold(percent: Int) = update { it.copy(lowVoltageThreshold = percent.coerceIn(5, 100)) }
+    fun setMinRefreshSeconds(seconds: Int) = update { it.copy(minRefreshSeconds = seconds.coerceIn(1, 60)) }
+    fun setShowAppBadge(enabled: Boolean) = viewModelScope.launch {
+        settingsRepo.update { it.copy(showAppBadge = enabled) }
+        // Badge visibility is a channel property — recreate it, then re-post the watching
+        // notification so the change takes effect right away.
+        com.i5autolock.service.NotificationChannels.ensure(appContext, enabled)
+        if (settingsRepo.settings.first().enabled) AutoLockService.startWatching(appContext)
+    }
+    /** Play the currently-configured lock sound (custom if set, else the default chime) to test it. */
+    fun testLockSound() = viewModelScope.launch {
+        val s = settingsRepo.settings.first()
+        com.i5autolock.data.sound.LockSound.play(appContext, s.customLockSoundUri)
+    }
+    /** Play the built-in default chime regardless of the custom setting. */
+    fun playDefaultSound() = com.i5autolock.data.sound.LockSound.playDefault()
     fun setRememberParkedLocation(enabled: Boolean) = update { it.copy(rememberParkedLocation = enabled) }
     fun setScheduleEnabled(enabled: Boolean) = update { it.copy(scheduleEnabled = enabled) }
     fun setScheduleStart(minutes: Int) = update { it.copy(scheduleStartMinutes = minutes) }

@@ -1,12 +1,21 @@
 package com.i5autolock
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.i5autolock.data.settings.SettingsRepository
+import com.i5autolock.service.NotificationChannels
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -14,9 +23,20 @@ class AutoLockApp : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
 
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface AppEntryPoint {
+        fun settingsRepo(): SettingsRepository
+    }
+
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        // Create the channel immediately (badge off), then apply the user's saved preference.
+        NotificationChannels.ensure(this, showBadge = false)
+        val repo = EntryPointAccessors.fromApplication(this, AppEntryPoint::class.java).settingsRepo()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            NotificationChannels.ensure(this@AutoLockApp, repo.settings.first().showAppBadge)
+        }
     }
 
     override val workManagerConfiguration: Configuration
@@ -24,27 +44,7 @@ class AutoLockApp : Application(), Configuration.Provider {
             .setWorkerFactory(workerFactory)
             .build()
 
-    private fun createNotificationChannel() {
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // v3 = silent channel; AutoLock plays its own Ioniq-style chime (EvChime) instead of the
-        // generic system ding, so the channel itself must not make sound.
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.notification_channel_name),
-            NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply {
-            description = getString(R.string.notification_channel_desc)
-            setShowBadge(true)
-            setSound(null, null)
-            enableVibration(false)
-        }
-        manager.createNotificationChannel(channel)
-        // Cleanup: remove older channel ids.
-        runCatching { manager.deleteNotificationChannel("autolock_activity") }
-        runCatching { manager.deleteNotificationChannel("autolock_activity_v2") }
-    }
-
     companion object {
-        const val CHANNEL_ID = "autolock_activity_v3"
+        const val CHANNEL_ID = "autolock_activity_v4"
     }
 }
