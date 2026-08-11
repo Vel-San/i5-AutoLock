@@ -7,6 +7,7 @@ enum class DetectionState {
     CONFIRMING,   // Trigger fired; waiting for corroborating signals.
     GRACE,        // Counting down before acting.
     VERIFYING,    // Querying the vehicle status via API.
+    AWAITING_CONFIRM, // Waiting for the user to confirm the lock (opt-in).
     LOCKING,      // Sending the lock command.
     LOCKED,       // Success.
     SKIPPED,      // Nothing to do (already locked / engine on / etc.).

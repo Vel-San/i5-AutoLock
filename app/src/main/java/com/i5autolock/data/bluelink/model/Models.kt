@@ -28,6 +28,23 @@ data class VehicleStatus(
     val isUnlocked: Boolean get() = lockState == LockState.UNLOCKED
 }
 
+/**
+ * Prefer this (fresh) status but fall back to [old] for any optional field the backend omitted.
+ * The EU "force refresh" endpoint often returns a minimal payload, so merging keeps battery/range
+ * from the last-known reading instead of dropping them.
+ */
+fun VehicleStatus.mergedOnto(old: VehicleStatus?): VehicleStatus {
+    if (old == null) return this
+    return copy(
+        evBatteryPercent = evBatteryPercent ?: old.evBatteryPercent,
+        rangeKm = rangeKm ?: old.rangeKm,
+        twelveVoltPercent = twelveVoltPercent ?: old.twelveVoltPercent,
+        climateOn = climateOn ?: old.climateOn,
+        anyDoorOpen = anyDoorOpen ?: old.anyDoorOpen,
+        batteryCharging = batteryCharging ?: old.batteryCharging,
+    )
+}
+
 /** Result of a remote command (lock/unlock). */
 sealed interface CommandResult {
     data class Success(val message: String) : CommandResult

@@ -39,6 +39,8 @@ data class AppSettings(
     // Notification content the user wants to see.
     val showStatusInNotification: Boolean = true,
     val showLockNowAction: Boolean = true,
+    // Pin the ongoing "watching" notification so it re-appears if swiped away.
+    val pinNotification: Boolean = true,
     val notificationFields: Set<NotificationField> = setOf(
         NotificationField.LOCK_STATE,
         NotificationField.EV_BATTERY,
@@ -47,6 +49,8 @@ data class AppSettings(
 
     // Behaviour toggles.
     val autoRefreshOnOpen: Boolean = true,
+    // Periodic background status refresh in minutes (0 = off; min effective 15 via WorkManager).
+    val autoRefreshIntervalMinutes: Int = 0,
     val hapticOnLock: Boolean = true,
     val soundOnLock: Boolean = false,
     val rememberParkedLocation: Boolean = false,

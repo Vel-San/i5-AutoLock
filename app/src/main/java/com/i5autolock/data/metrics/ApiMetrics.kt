@@ -1,15 +1,33 @@
 package com.i5autolock.data.metrics
 
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Outcome of a single API call. */
+@Serializable
 enum class ApiOutcome { SUCCESS, FAILURE, RATE_LIMITED, UNAUTHENTICATED }
 
 /** One recorded API call. Contains NO tokens, credentials, or PII. */
+@Serializable
 data class ApiCall(
     val timestamp: Long,
     val operation: String,
@@ -19,6 +37,7 @@ data class ApiCall(
 )
 
 /** Aggregated, ready-to-display metrics snapshot. */
+@Serializable
 data class MetricsSnapshot(
     val calls: List<ApiCall> = emptyList(),
     val totalCalls: Int = 0,
@@ -37,15 +56,32 @@ data class MetricsSnapshot(
         rateLimitedUntilEpochMs?.let { it > now } == true
 }
 
+private val Context.metricsDataStore: DataStore<Preferences> by preferencesDataStore(name = "api_metrics")
+
 /**
- * In-memory API telemetry surfaced on the Statistics screen. Privacy-first: records only
- * operation name, timing, and outcome — never tokens, headers, VINs, or account data.
+ * API telemetry surfaced on the Statistics screen, persisted so it survives app restarts.
+ * Privacy-first: records only operation name, timing, and outcome — never tokens, headers,
+ * VINs, or account data.
  */
 @Singleton
-class ApiMetrics @Inject constructor() {
+class ApiMetrics @Inject constructor(
+    @ApplicationContext private val context: Context,
+) {
+    private val json = Json { ignoreUnknownKeys = true }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _snapshot = MutableStateFlow(MetricsSnapshot())
     val snapshot: StateFlow<MetricsSnapshot> = _snapshot
+
+    init {
+        // Restore the previously persisted snapshot on startup.
+        scope.launch {
+            val stored = context.metricsDataStore.data.first()[KEY] ?: return@launch
+            runCatching { json.decodeFromString<MetricsSnapshot>(stored) }.getOrNull()?.let { restored ->
+                if (_snapshot.value.totalCalls == 0) _snapshot.value = restored
+            }
+        }
+    }
 
     fun record(
         operation: String,
@@ -78,12 +114,26 @@ class ApiMetrics @Inject constructor() {
                 },
             )
         }
+        persist()
     }
 
-    fun clear() = _snapshot.update { MetricsSnapshot() }
+    fun clear() {
+        _snapshot.update { MetricsSnapshot() }
+        persist()
+    }
+
+    private fun persist() {
+        val current = _snapshot.value
+        scope.launch {
+            runCatching {
+                context.metricsDataStore.edit { it[KEY] = json.encodeToString(current) }
+            }
+        }
+    }
 
     private companion object {
-        const val MAX_CALLS = 200
+        val KEY = stringPreferencesKey("snapshot")
+        const val MAX_CALLS = 120
         // Conservative estimate; BlueLink throttles remote commands for a few minutes.
         const val RATE_LIMIT_COOLDOWN_MS = 5 * 60_000L
     }

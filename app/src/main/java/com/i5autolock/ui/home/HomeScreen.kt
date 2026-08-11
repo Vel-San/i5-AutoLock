@@ -10,9 +10,13 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,10 +66,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
@@ -82,8 +90,8 @@ import com.i5autolock.domain.LogLevel
 import com.i5autolock.domain.detection.DetectionState
 import com.i5autolock.ui.theme.ParametricPixels
 import com.i5autolock.ui.theme.PixelBand
+import com.i5autolock.ui.theme.PixelField
 import com.i5autolock.ui.theme.ScanningPixelBand
-import com.i5autolock.ui.theme.SparklingPixels
 import com.i5autolock.ui.theme.ambientBackground
 import com.i5autolock.ui.theme.brandGradient
 import com.i5autolock.ui.theme.heroGlow
@@ -156,23 +164,38 @@ fun HomeScreen(
                         )
                     }
                     item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(
-                                onClick = viewModel::runNow,
-                                modifier = Modifier.weight(1f).height(56.dp),
-                                shape = RoundedCornerShape(18.dp),
-                                enabled = settings.isConfigured || settings.demoMode,
-                            ) {
-                                Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Simulate leaving", fontWeight = FontWeight.SemiBold)
+                        // Simulating in Armed mode on a real account would send a real lock — only
+                        // allow it in Demo or Dry run.
+                        val armedLive = settings.runMode == RunMode.ARMED && !settings.demoMode
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Button(
+                                    onClick = viewModel::runNow,
+                                    modifier = Modifier.weight(1f).height(56.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    enabled = (settings.isConfigured || settings.demoMode) && !armedLive,
+                                ) {
+                                    Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        if (armedLive) "Simulation off (Armed)" else "Simulate leaving",
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = viewModel::cancel,
+                                    modifier = Modifier.height(56.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                ) {
+                                    Text("Cancel")
+                                }
                             }
-                            OutlinedButton(
-                                onClick = viewModel::cancel,
-                                modifier = Modifier.height(56.dp),
-                                shape = RoundedCornerShape(18.dp),
-                            ) {
-                                Text("Cancel")
+                            if (armedLive) {
+                                Text(
+                                    "Armed on a real account would lock your car for real. Switch to Dry run or Demo to simulate safely.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }
@@ -233,6 +256,7 @@ private fun StatusCard(
         detection == DetectionState.CONFIRMING ||
         detection == DetectionState.GRACE ||
         detection == DetectionState.VERIFYING ||
+        detection == DetectionState.AWAITING_CONFIRM ||
         detection == DetectionState.LOCKING
     val secured = detection == DetectionState.LOCKED || detection == DetectionState.SKIPPED
     Card(
@@ -256,18 +280,18 @@ private fun StatusCard(
                     ),
                 ),
         ) {
+            val onGradient = if (enabled) Color.White else MaterialTheme.colorScheme.onSurface
+            // Subtle blurred pixel texture behind the content.
+            PixelField(
+                modifier = Modifier
+                    .matchParentSize()
+                    .blur(5.dp),
+                color = onGradient.copy(alpha = 0.16f),
+                active = enabled,
+            )
             if (enabled) {
                 Box(Modifier.fillMaxWidth().height(220.dp).background(heroGlow()))
             }
-            val onGradient = if (enabled) Color.White else MaterialTheme.colorScheme.onSurface
-            SparklingPixels(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(18.dp)
-                    .size(64.dp, 40.dp),
-                color = onGradient,
-                active = enabled,
-            )
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     "SYSTEM STATUS",
@@ -280,13 +304,8 @@ private fun StatusCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (enabled) {
-                            if (active) {
-                                PulsingDot(onGradient)
-                            } else {
-                                StaticDot(onGradient.copy(alpha = if (secured) 1f else 0.55f))
-                            }
-                        }
+                        // Heartbeat dot pulses whenever AutoLock is watching.
+                        if (enabled) PulsingDot(onGradient)
                         Text(
                             text = if (enabled) "Watching" else "Off",
                             style = MaterialTheme.typography.displaySmall,
@@ -325,6 +344,7 @@ private fun StatusCard(
                         DetectionState.CONFIRMING -> "Confirming you left the car…"
                         DetectionState.GRACE -> "Locking in ${graceRemaining}s…"
                         DetectionState.VERIFYING -> "Checking vehicle status…"
+                        DetectionState.AWAITING_CONFIRM -> "Tap \"Lock now\" in the notification to confirm."
                         DetectionState.LOCKING -> "Locking…"
                         DetectionState.LOCKED -> "Locked ✓"
                         DetectionState.SKIPPED -> "Already secure — nothing to do."
@@ -377,6 +397,7 @@ private fun VehicleStatusCard(
 ) {
     val status = ui.status
     val lockState = status?.lockState ?: LockState.UNKNOWN
+    val now = rememberNow()
     val gradient = when (lockState) {
         LockState.LOCKED -> Brush.linearGradient(listOf(Color(0xFF0E8575), Color(0xFF0A4E48)))
         LockState.UNLOCKED -> Brush.linearGradient(listOf(Color(0xFFC9503E), Color(0xFF7E2A20)))
@@ -393,15 +414,15 @@ private fun VehicleStatusCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
     ) {
         Box(Modifier.fillMaxWidth().background(gradient)) {
-            Box(Modifier.fillMaxWidth().height(180.dp).background(heroGlow()))
-            SparklingPixels(
+            // Subtle blurred pixel texture behind the content.
+            PixelField(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .size(52.dp, 33.dp),
-                color = onCard,
+                    .matchParentSize()
+                    .blur(5.dp),
+                color = onCard.copy(alpha = 0.16f),
                 active = lockState == LockState.LOCKED,
             )
+            Box(Modifier.fillMaxWidth().height(180.dp).background(heroGlow()))
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
                     Modifier.fillMaxWidth(),
@@ -440,7 +461,7 @@ private fun VehicleStatusCard(
                                 color = onCard,
                             )
                             Text(
-                                text = ui.lastRefreshEpochMs?.let { "Updated ${relativeTime(it)}" }
+                                text = ui.lastRefreshEpochMs?.let { "Updated ${relativeTime(it, now)}" }
                                     ?: if (ui.loading) "Refreshing…" else "Not checked yet",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = onCard.copy(alpha = 0.75f),
@@ -478,6 +499,16 @@ private fun VehicleStatusCard(
                     status.anyDoorOpen?.takeIf { it }?.let {
                         Text("A door appears to be open.", color = onCard, style = MaterialTheme.typography.bodySmall)
                     }
+                } else if (ui.loading) {
+                    // First-ever load with nothing cached — show shimmering skeletons.
+                    SkeletonBar(onCard)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        repeat(3) { SkeletonChip(onCard) }
+                    }
                 }
 
                 parkedLabel?.let {
@@ -501,8 +532,44 @@ private fun VehicleStatusCard(
 }
 
 @Composable
+private fun shimmerAlpha(): Float {
+    val t = rememberInfiniteTransition(label = "shimmer")
+    val a by t.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.55f,
+        animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
+        label = "shimmerAlpha",
+    )
+    return a
+}
+
+@Composable
+private fun SkeletonBar(onCard: Color) {
+    val a = shimmerAlpha()
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(18.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(onCard.copy(alpha = a * 0.35f)),
+    )
+}
+
+@Composable
+private fun SkeletonChip(onCard: Color) {
+    val a = shimmerAlpha()
+    Box(
+        Modifier
+            .size(width = 92.dp, height = 44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(onCard.copy(alpha = a * 0.30f)),
+    )
+}
+
+@Composable
 private fun BatteryBar(percent: Int, onCard: Color) {
     val fraction by animateFloatAsState(targetValue = (percent / 100f).coerceIn(0f, 1f), label = "battery")
+    val animatedPct by animateIntAsState(targetValue = percent, animationSpec = tween(700), label = "pct")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             Modifier.fillMaxWidth(),
@@ -513,7 +580,7 @@ private fun BatteryBar(percent: Int, onCard: Color) {
                 Icon(Icons.Default.BatteryChargingFull, contentDescription = null, modifier = Modifier.size(18.dp), tint = onCard)
                 Text("Drive battery", style = MaterialTheme.typography.bodyMedium, color = onCard.copy(alpha = 0.85f))
             }
-            Text("$percent%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = onCard)
+            Text("$animatedPct%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = onCard)
         }
         Box(
             Modifier
@@ -550,14 +617,20 @@ private fun HeroStatChip(
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = onCard)
         Column {
-            Text(
-                value,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = onCard,
-                maxLines = 1,
-                softWrap = false,
-            )
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = { fadeIn(tween(450)) togetherWith fadeOut(tween(450)) },
+                label = "chipValue",
+            ) { v ->
+                Text(
+                    v,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = onCard,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
             Text(
                 label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
@@ -675,23 +748,27 @@ private fun PulsingDot(color: Color) {
     )
 }
 
-@Composable
-private fun StaticDot(color: Color) {
-    Box(
-        Modifier
-            .size(12.dp)
-            .clip(CircleShape)
-            .background(color),
-    )
+private fun relativeTime(epochMs: Long, now: Long = System.currentTimeMillis()): String {
+    val diff = now - epochMs
+    return when {
+        diff < 45_000 -> "just now"
+        diff < 3_600_000 -> "${(diff / 60_000).coerceAtLeast(1)} min ago"
+        diff < 86_400_000 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epochMs))
+        else -> SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(epochMs))
+    }
 }
 
-private fun relativeTime(epochMs: Long): String {
-    val diff = System.currentTimeMillis() - epochMs
-    return when {
-        diff < 60_000 -> "just now"
-        diff < 3_600_000 -> "${diff / 60_000} min ago"
-        else -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epochMs))
+/** A recomposing clock that ticks every [intervalMs] so relative timestamps stay fresh. */
+@Composable
+private fun rememberNow(intervalMs: Long = 15_000L): Long {
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(intervalMs)
+            now = System.currentTimeMillis()
+        }
     }
+    return now
 }
 
 /** Opens the parked spot in Google Maps (by coordinates when known, else a search on the label). */

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.i5autolock.data.bluelink.BlueLinkProvider
 import com.i5autolock.data.bluelink.model.VehicleStatus
+import com.i5autolock.data.bluelink.model.mergedOnto
 import com.i5autolock.data.settings.AppSettings
 import com.i5autolock.data.settings.SettingsRepository
 import com.i5autolock.data.status.StatusCache
@@ -13,6 +14,7 @@ import com.i5autolock.domain.AutoLockUiState
 import com.i5autolock.domain.LogEntry
 import com.i5autolock.domain.StatusSummary
 import com.i5autolock.service.AutoLockService
+import com.i5autolock.work.StatusRefreshWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import android.content.Context
 import javax.inject.Inject
@@ -52,12 +55,30 @@ class HomeViewModel @Inject constructor(
     private val _vehicleStatus = MutableStateFlow(VehicleStatusUi())
     val vehicleStatus: StateFlow<VehicleStatusUi> = _vehicleStatus
 
+    // Guard against hammering the (rate-limited) BlueLink API with rapid manual refreshes.
+    private var lastFetchAtMs = 0L
+
     init {
-        // Pull a cached status snapshot on open (no forced remote refresh).
-        refreshStatus(force = false)
-        // If watching is already enabled, make sure the background service is running.
+        // Show the last-known status instantly (no blanks on reopen) and keep it in sync with the
+        // cache, which is also written by the lock flow and the background refresh worker.
         viewModelScope.launch {
-            if (settingsRepo.settings.first().enabled) AutoLockService.startWatching(appContext)
+            statusCache.cached.collect { c ->
+                val cached = c.toVehicleStatus() ?: return@collect
+                _vehicleStatus.update { ui ->
+                    if (ui.loading) ui else ui.copy(
+                        status = cached.mergedOnto(ui.status),
+                        lastRefreshEpochMs = c.updatedAtEpochMs.takeIf { it > 0 } ?: ui.lastRefreshEpochMs,
+                    )
+                }
+            }
+        }
+        // Pull a fresh snapshot on open (respects the auto-refresh-on-open setting).
+        refreshStatus(force = false)
+        viewModelScope.launch {
+            val s = settingsRepo.settings.first()
+            if (s.enabled) AutoLockService.startWatching(appContext)
+            // (Re)schedule the periodic background refresh to match the setting.
+            StatusRefreshWorker.schedule(appContext, s.autoRefreshIntervalMinutes)
         }
     }
 
@@ -77,31 +98,48 @@ class HomeViewModel @Inject constructor(
     fun refreshStatus(force: Boolean) = viewModelScope.launch {
         val s = settingsRepo.settings.first()
         if (s.vehicleId == null && !s.demoMode) {
-            _vehicleStatus.value = VehicleStatusUi(error = "No vehicle selected.")
+            _vehicleStatus.update { it.copy(loading = false, error = "No vehicle selected.") }
             return@launch
         }
         if (!force && !s.autoRefreshOnOpen) return@launch
+        if (force) {
+            val now = System.currentTimeMillis()
+            if (now - lastFetchAtMs < MIN_REFRESH_INTERVAL_MS) {
+                _vehicleStatus.update { it.copy(loading = false, error = "Just refreshed — give it a few seconds.") }
+                return@launch
+            }
+            lastFetchAtMs = now
+        }
         val vehicleId = s.vehicleId ?: "demo-ioniq5"
-        _vehicleStatus.value = _vehicleStatus.value.copy(loading = true, error = null)
+        _vehicleStatus.update { it.copy(loading = true, error = null) }
         val client = provider.client(s)
         if (!s.demoMode && !client.ensureFreshSession()) {
-            _vehicleStatus.value = VehicleStatusUi(error = "Not signed in.")
+            // Keep the last-known details visible; just surface the sign-in problem.
+            _vehicleStatus.update { it.copy(loading = false, error = "Not signed in.") }
             return@launch
         }
         runCatching { client.status(vehicleId, forceRefresh = force) }
-            .onSuccess {
-                _vehicleStatus.value = VehicleStatusUi(
-                    loading = false,
-                    status = it,
-                    lastRefreshEpochMs = System.currentTimeMillis(),
-                )
-                statusCache.save(it.lockState.name, StatusSummary.build(it, s.notificationFields))
+            .onSuccess { fresh ->
+                // Merge so a partial (force-refresh) response never wipes existing detail — and the
+                // notification/widget summary is built from the merged status too.
+                val merged = fresh.mergedOnto(_vehicleStatus.value.status)
+                _vehicleStatus.update { ui ->
+                    ui.copy(
+                        loading = false,
+                        error = null,
+                        status = merged,
+                        lastRefreshEpochMs = System.currentTimeMillis(),
+                    )
+                }
+                statusCache.saveStatus(merged, StatusSummary.build(merged, s.notificationFields))
             }
-            .onFailure {
-                _vehicleStatus.value = _vehicleStatus.value.copy(
-                    loading = false,
-                    error = it.message ?: "Couldn't read status.",
-                )
+            .onFailure { e ->
+                // Preserve the visible status; only report the error.
+                _vehicleStatus.update { it.copy(loading = false, error = e.message ?: "Couldn't read status.") }
             }
+    }
+
+    private companion object {
+        const val MIN_REFRESH_INTERVAL_MS = 6_000L
     }
 }

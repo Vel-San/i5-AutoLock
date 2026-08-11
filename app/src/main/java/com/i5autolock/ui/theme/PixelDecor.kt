@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.sin
 
 /**
@@ -57,6 +58,54 @@ fun ParametricPixels(
                 size = Size(cellW, cellH),
                 cornerRadius = radius,
             )
+        }
+    }
+}
+
+/**
+ * A scattered field of pixels tiled across the whole area — meant to sit behind card content as a
+ * soft, blurred background texture. Each pixel twinkles independently when [active]. Keep the
+ * [color] alpha low and apply `Modifier.blur(...)` at the call site for a subtle wash.
+ */
+@Composable
+fun PixelField(
+    modifier: Modifier = Modifier,
+    color: Color = DigitalTeal,
+    active: Boolean = true,
+    cellSize: Dp = 15.dp,
+    gap: Dp = 9.dp,
+) {
+    val transition = rememberInfiniteTransition(label = "field")
+    val t by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(3400, easing = LinearEasing)),
+        label = "t",
+    )
+    Canvas(modifier) {
+        val c = cellSize.toPx()
+        val g = gap.toPx()
+        val step = c + g
+        if (step <= 0f) return@Canvas
+        val cols = ceil(size.width / step).toInt() + 1
+        val rows = ceil(size.height / step).toInt() + 1
+        val radius = CornerRadius(c * 0.32f)
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                val seed = (row * 73856093) xor (col * 19349663)
+                // Sparse, organic mask so it reads as scattered pixels, not a solid grid.
+                if ((seed ushr 3) % 5 == 0) continue
+                val a = if (active) {
+                    val phase = ((seed ushr 5) % 628) / 100f
+                    (0.45f + 0.4f * sin(t + phase)).coerceIn(0.12f, 0.85f)
+                } else 0.5f
+                drawRoundRect(
+                    color = color.copy(alpha = color.alpha * a),
+                    topLeft = Offset(col * step, row * step),
+                    size = Size(c, c),
+                    cornerRadius = radius,
+                )
+            }
         }
     }
 }

@@ -7,10 +7,10 @@
     android:viewportHeight="108">
     <!-- Premium padlock with the Ioniq "parametric pixel" keyhole, centred in the safe zone. -->
     <group
-        android:scaleX="1.08"
-        android:scaleY="1.08"
+        android:scaleX="0.82"
+        android:scaleY="0.82"
         android:pivotX="54"
-        android:pivotY="56">
+        android:pivotY="55">
         <!-- soft drop shadow under the body -->
         <path
             android:fillColor="#33000000"

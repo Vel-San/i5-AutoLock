@@ -34,7 +34,9 @@ class SettingsRepository @Inject constructor(
         val SHOW_STATUS_NOTIF = booleanPreferencesKey("show_status_notif")
         val NOTIF_FIELDS = stringSetPreferencesKey("notif_fields")
         val SHOW_LOCK_NOW = booleanPreferencesKey("show_lock_now")
+        val PIN_NOTIF = booleanPreferencesKey("pin_notif")
         val AUTO_REFRESH_OPEN = booleanPreferencesKey("auto_refresh_open")
+        val AUTO_REFRESH_INTERVAL = intPreferencesKey("auto_refresh_interval")
         val HAPTIC_ON_LOCK = booleanPreferencesKey("haptic_on_lock")
         val SOUND_ON_LOCK = booleanPreferencesKey("sound_on_lock")
         val REMEMBER_PARKED = booleanPreferencesKey("remember_parked")
@@ -73,7 +75,9 @@ class SettingsRepository @Inject constructor(
             ?.toSet()
             ?: AppSettings().notificationFields,
         showLockNowAction = this[Keys.SHOW_LOCK_NOW] ?: true,
+        pinNotification = this[Keys.PIN_NOTIF] ?: true,
         autoRefreshOnOpen = this[Keys.AUTO_REFRESH_OPEN] ?: true,
+        autoRefreshIntervalMinutes = this[Keys.AUTO_REFRESH_INTERVAL] ?: 0,
         hapticOnLock = this[Keys.HAPTIC_ON_LOCK] ?: true,
         soundOnLock = this[Keys.SOUND_ON_LOCK] ?: false,
         rememberParkedLocation = this[Keys.REMEMBER_PARKED] ?: false,
@@ -113,7 +117,9 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.SHOW_STATUS_NOTIF] = next.showStatusInNotification
             prefs[Keys.NOTIF_FIELDS] = next.notificationFields.map { it.name }.toSet()
             prefs[Keys.SHOW_LOCK_NOW] = next.showLockNowAction
+            prefs[Keys.PIN_NOTIF] = next.pinNotification
             prefs[Keys.AUTO_REFRESH_OPEN] = next.autoRefreshOnOpen
+            prefs[Keys.AUTO_REFRESH_INTERVAL] = next.autoRefreshIntervalMinutes
             prefs[Keys.HAPTIC_ON_LOCK] = next.hapticOnLock
             prefs[Keys.SOUND_ON_LOCK] = next.soundOnLock
             prefs[Keys.REMEMBER_PARKED] = next.rememberParkedLocation

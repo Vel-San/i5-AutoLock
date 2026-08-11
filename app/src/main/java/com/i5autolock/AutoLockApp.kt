@@ -26,7 +26,8 @@ class AutoLockApp : Application(), Configuration.Provider {
 
     private fun createNotificationChannel() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // v2 = new channel id so existing installs pick up the higher importance.
+        // v3 = silent channel; AutoLock plays its own Ioniq-style chime (EvChime) instead of the
+        // generic system ding, so the channel itself must not make sound.
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.notification_channel_name),
@@ -34,13 +35,16 @@ class AutoLockApp : Application(), Configuration.Provider {
         ).apply {
             description = getString(R.string.notification_channel_desc)
             setShowBadge(true)
+            setSound(null, null)
+            enableVibration(false)
         }
         manager.createNotificationChannel(channel)
-        // Cleanup: kill the old low-importance channel if it was ever created.
+        // Cleanup: remove older channel ids.
         runCatching { manager.deleteNotificationChannel("autolock_activity") }
+        runCatching { manager.deleteNotificationChannel("autolock_activity_v2") }
     }
 
     companion object {
-        const val CHANNEL_ID = "autolock_activity_v2"
+        const val CHANNEL_ID = "autolock_activity_v3"
     }
 }

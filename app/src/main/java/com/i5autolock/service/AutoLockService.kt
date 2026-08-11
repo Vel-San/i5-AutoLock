@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import android.os.VibrationEffect
@@ -39,15 +38,36 @@ class AutoLockService : Service() {
 
     @Inject lateinit var controller: AutoLockController
     @Inject lateinit var settingsRepo: SettingsRepository
+    @Inject lateinit var statusCache: com.i5autolock.data.status.StatusCache
+    @Inject lateinit var activityRecognition: com.i5autolock.data.detection.ActivityRecognitionManager
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var observeJob: Job? = null
     private var showLockNow: Boolean = true
+    private var pinNotification: Boolean = true
+    private var showStatus: Boolean = true
+    // Last-known vehicle status line, kept so the "watching" notification can still show it.
+    private var lastSummary: String? = null
+    private var currentDetection: DetectionState = DetectionState.IDLE
     private var confirmedFeedback = false
     // True while AutoLock is enabled and should keep watching in the background persistently.
     private var watchMode = false
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        // Single source of truth for the status line: keep it fresh for the whole service lifetime
+        // so the "watching" notification always reflects the last-known vehicle status.
+        scope.launch {
+            showStatus = settingsRepo.settings.first().showStatusInNotification
+            statusCache.cached.collect { c ->
+                lastSummary = c.summary.ifBlank { null }
+                // Refresh the watching notification while resting so the new status shows.
+                if (watchMode && currentDetection == DetectionState.IDLE) startForegroundWatch()
+            }
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // A null intent means the system recreated us after a kill (START_STICKY). Resume watching
@@ -58,9 +78,14 @@ class AutoLockService : Service() {
             scope.launch {
                 val s = settingsRepo.settings.first()
                 showLockNow = s.showLockNowAction
+                pinNotification = s.pinNotification
+                showStatus = s.showStatusInNotification
+                lastSummary = statusCache.cached.first().summary.ifBlank { null }
                 if (!s.enabled) {
                     watchMode = false
                     stop()
+                } else {
+                    startForegroundWatch()
                 }
             }
             observe()
@@ -73,13 +98,25 @@ class AutoLockService : Service() {
                 startForegroundWatch()
                 watchMode = false
                 controller.cancel()
-                stop()
+                // Turning off from the notification must also flip the in-app toggle.
+                scope.launch {
+                    settingsRepo.update { it.copy(enabled = false) }
+                    stop()
+                }
                 return START_NOT_STICKY
             }
             ACTION_START_WATCH -> {
                 watchMode = true
-                scope.launch { showLockNow = settingsRepo.settings.first().showLockNowAction }
                 startForegroundWatch()
+                scope.launch {
+                    val s = settingsRepo.settings.first()
+                    showLockNow = s.showLockNowAction
+                    pinNotification = s.pinNotification
+                    showStatus = s.showStatusInNotification
+                    lastSummary = statusCache.cached.first().summary.ifBlank { null }
+                    if (s.useActivityRecognition) activityRecognition.start() else activityRecognition.stop()
+                    startForegroundWatch()
+                }
                 observe()
                 return START_STICKY
             }
@@ -96,7 +133,15 @@ class AutoLockService : Service() {
         }
 
         // Default: a trigger fired (Bluetooth disconnect or "Simulate leaving").
-        scope.launch { showLockNow = settingsRepo.settings.first().showLockNowAction }
+        scope.launch {
+            val s = settingsRepo.settings.first()
+            showLockNow = s.showLockNowAction
+            showStatus = s.showStatusInNotification
+            // Soft "listening" chime when an evaluation begins.
+            if (s.soundOnLock && intent.action != ACTION_ALREADY_RUNNING) {
+                runCatching { com.i5autolock.data.sound.EvChime.playNotify() }
+            }
+        }
         startForegroundCompat(DetectionState.CONFIRMING, 0)
         if (intent.action != ACTION_ALREADY_RUNNING) controller.onTriggerFired()
         observe()
@@ -113,6 +158,7 @@ class AutoLockService : Service() {
         if (observeJob != null) return
         observeJob = scope.launch {
             controller.state.collect { s ->
+                currentDetection = s.detection
                 updateNotification(s.detection, s.graceRemaining, s.statusSummary)
                 if (s.detection == DetectionState.LOCKED && !confirmedFeedback) {
                     confirmedFeedback = true
@@ -135,12 +181,7 @@ class AutoLockService : Service() {
     private fun playLockConfirmation() = scope.launch {
         val settings = settingsRepo.settings.first()
         if (settings.hapticOnLock) vibrateOnce()
-        if (settings.soundOnLock) runCatching {
-            RingtoneManager.getRingtone(
-                this@AutoLockService,
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-            )?.play()
-        }
+        if (settings.soundOnLock) runCatching { com.i5autolock.data.sound.EvChime.playLock() }
     }
 
     private fun vibrateOnce() {
@@ -162,7 +203,8 @@ class AutoLockService : Service() {
     }
 
     private fun startForegroundWatch() {
-        val notification = AutoLockNotification.buildWatching(this)
+        val summary = if (showStatus) lastSummary else null
+        val notification = AutoLockNotification.buildWatching(this, statusSummary = summary, pinned = pinNotification)
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         } else 0
@@ -201,6 +243,7 @@ class AutoLockService : Service() {
     private fun stop() {
         observeJob?.cancel()
         observeJob = null
+        activityRecognition.stop()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

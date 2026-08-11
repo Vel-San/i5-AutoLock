@@ -222,6 +222,20 @@ fun SettingsScreen(
                     settings.autoRefreshOnOpen,
                     viewModel::setAutoRefreshOnOpen,
                 )
+                Text("Background auto-check", fontWeight = FontWeight.Medium)
+                Text(
+                    "Refresh the vehicle status in the background on a schedule.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0 to "Off", 15 to "15m", 30 to "30m", 60 to "60m").forEach { (mins, label) ->
+                        FilterChip(
+                            selected = settings.autoRefreshIntervalMinutes == mins,
+                            onClick = { viewModel.setAutoRefreshInterval(mins) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
                 RowToggle(
                     "Vibrate on lock",
                     "Buzz when the car is locked.",
@@ -268,6 +282,12 @@ fun SettingsScreen(
 
             // Notification.
             Section("Notification") {
+                RowToggle(
+                    title = "Pin the notification",
+                    subtitle = "Keep the \"watching\" notification stuck — it re-appears if swiped away.",
+                    checked = settings.pinNotification,
+                    onCheckedChange = viewModel::setPinNotification,
+                )
                 RowToggle(
                     title = "\"Lock now\" button",
                     subtitle = "Show a button to lock immediately, skipping the countdown.",

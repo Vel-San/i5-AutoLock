@@ -134,11 +134,14 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
 
 ## 8. Open TODOs / known gaps
 - US/CA/AU clients not yet implemented (structure is ready in `BlueLinkProvider`).
-- Activity Recognition + Geofencing wiring: hooks exist in `AutoLockController`
-  (`onWalkingConfirmed`, `onMovedBeyondGeofence`); the Play Services registration
-  (transition receiver / geofence client) still needs to be added.
-- "Confirm before locking" setting is stored but the notification-action confirm path
-  is not yet wired.
+- Activity Recognition IS wired (`data/detection/ActivityRecognitionManager` + `receiver/ActivityTransitionReceiver`,
+  registered by `AutoLockService` on watch start when `useActivityRecognition`). Geofence confirmation is
+  also wired but as **distance polling** during the confirm window (`AutoLockController` captures the
+  location at trigger and polls `LocationHelper.currentLocation()` every 3s, firing `MovedBeyondGeofence`
+  past `geofenceRadiusMeters`) rather than the Play Services Geofence API (unreliable for a 20s window).
+- Cert-pinning: slots exist in `network_security_config.xml` but real pin hashes must be supplied
+  (fake pins would break connectivity) — intentionally not populated.
+- Custom bundled display font not added (needs binary font assets); type system uses system families.
 - EU endpoint/stamp values need live verification against the reference projects.
 
 ## 9. Changelog (append notable changes)
@@ -259,3 +262,77 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   notification carries a `deleteIntent` (`getForegroundService` → `ACTION_START_WATCH`) so if the user
   swipes it away it immediately re-posts — watching stays visible/persistent while enabled. OEM battery
   optimisation can still kill it, hence the existing "Keep AutoLock running" settings shortcuts.
+- Blurred pixel backdrop + pinnable notification: replaced the corner `SparklingPixels` on the System
+  Status and Vehicle cards with a full-card `PixelField` (theme/PixelDecor — scattered twinkling pixels)
+  rendered behind the content via `Modifier.matchParentSize().blur(14.dp)` at low alpha, so it's a
+  subtle animated texture rather than overlapping the controls. New user setting `AppSettings.pinNotification`
+  (default on, Settings → Notification "Pin the notification"): when on, the watching notification's
+  `deleteIntent` re-posts it if swiped (effectively unswipeable); when off it's dismissable. The service
+  reads it (`pinNotification` field → `buildWatching(pinned)`); toggling re-asserts immediately via
+  `SettingsViewModel.setPinNotification` → `startWatching`.
+- Notification flow fixes round 4:
+  - Watching notification now keeps the vehicle status line: `AutoLockService` injects `StatusCache`,
+    tracks `lastSummary` (seeded from the cache, updated from `controller.state.statusSummary` and a
+    live `statusCache.cached` collector), and `startForegroundWatch` passes it to `buildWatching`
+    (gated by `showStatusInNotification`). So after locking it stays "AutoLock is watching · Locked · …"
+    instead of dropping the status.
+  - "Turn off" notification action now also flips the in-app toggle: `ACTION_STOP_WATCH` does
+    `settingsRepo.update { enabled = false }` before `stop()` (so Home/Tile reflect off).
+  - Pixel backdrop blur reduced 14dp→5dp so the pixels still read as pixels.
+  - The "watching" heartbeat dot pulses again whenever enabled (was only pulsing during an active
+    evaluation); removed the now-unused `StaticDot`.
+- Notification flow core rework (round 5): the watching notification's status line is now single-sourced
+  from `StatusCache` via a **service-lifetime** collector in `AutoLockService.onCreate` (not inside
+  `observe()`), so `lastSummary` is always fresh regardless of code path. `buildWatching` now shows the
+  vehicle status as the **primary** content line ("AutoLock is watching" title + e.g. "Locked · 72% ·
+  318 km"), falling back to "Monitoring for you leaving the car." only when no status is known. The
+  controller saves the post-lock status to `StatusCache` (armed), so after locking the watching
+  notification keeps showing "Locked …" instead of dropping the status.
+- Status flow overhaul (real-time + resilient): `StatusCache` now persists the **full** `VehicleStatus`
+  (battery/range/engine/12V/doors/climate/charging via `saveStatus` + `toVehicleStatus`), not just the
+  lock string. `HomeViewModel` seeds the vehicle card from the cache instantly (no blanks on reopen),
+  collects `statusCache.cached` for **live** updates (lock flow + worker write to the cache), and
+  `refreshStatus` no longer blanks on error/partial data — it **merges** fresh values onto the previous
+  ones (a null field keeps the old value) and preserves detail when sign-in/refresh fails. Controller
+  writes full status via `saveStatus`. New `work/StatusRefreshWorker` (`@HiltWorker`, unique periodic)
+  does a background status poll on a user schedule; Settings → Behaviour "Background auto-check"
+  (Off/15/30/60m, `AppSettings.autoRefreshIntervalMinutes`, WorkManager 15-min floor) via
+  `SettingsViewModel.setAutoRefreshInterval`, re-scheduled on Home open. Home animations: battery %
+  count via `animateIntAsState`, stat-chip values crossfade (`AnimatedContent` fade), so old values
+  fade smoothly to new. "Updated …" time now tracks the freshest cache write.
+- Round 6 (optimizations + fixes):
+  - Merge fix (notification/refresh losing detail): `VehicleStatus.mergedOnto(old)` (model) prefers the
+    fresh value per optional field, else keeps the previous. `HomeViewModel.refreshStatus` and the
+    controller build the summary + cache from the **merged** status, so a minimal EU force-refresh no
+    longer strips battery/range from the card or notification.
+  - Simulate guard: "Simulate leaving" is disabled (with a hint) when `runMode==ARMED && !demoMode`
+    (would send a real lock); allowed in Demo / Dry run.
+  - Skeleton loading: shimmering `SkeletonBar`/`SkeletonChip` on the vehicle card only when nothing is
+    cached yet and loading (cache seeding means this is rare).
+  - Confirm-before-lock wired: new `DetectionState.AWAITING_CONFIRM`; when `requireConfirmationBeforeLock`
+    the controller waits (2-min timeout) for the notification "Lock now" (reuses `skipGrace`) before
+    locking, else aborts. Notification + Home label handle the new state.
+  - Refresh throttle: `HomeViewModel` blocks forced refreshes within 6s (rate-limit friendliness).
+  - Worker hardening: `StatusRefreshWorker` adds `setRequiresBatteryNotLow` + exponential backoff.
+  - Activity Recognition wired: `ActivityRecognitionManager` (ENTER WALKING/ON_FOOT transitions) +
+    `ActivityTransitionReceiver` → `controller.onWalkingConfirmed()`; started/stopped by `AutoLockService`
+    with watch mode when `useActivityRecognition`. Uses `FLAG_MUTABLE` PendingIntent.
+  - Widget shows the full summary (2 lines). Tests: `VehicleStatusMergeTest`.
+  - Deferred (need assets/real values): cert-pinning hashes, bundled font, exit-geofence (arrival-capture
+    redesign).
+- Round 7 (persist stats, EV sound, icon):
+  - `ApiMetrics` is now **persisted** (DataStore JSON, `@Serializable` snapshot) so the Statistics screen
+    survives app restarts; restored on init, saved on each `record`/`clear` (calls capped at 120).
+  - Ioniq-style chime: `data/sound/EvChime` synthesises a soft bell arpeggio at runtime via `AudioTrack`
+    (no audio assets). `playLock` (ascending D5·F#5·A5·D6) fires on lock, `playNotify` (A5·D6) when an
+    evaluation begins — both gated by `soundOnLock`. The notification channel is now **silent** (v3,
+    `setSound(null,null)`) so the system ding doesn't clash with the chime.
+  - Launcher icon: the padlock group scale reduced 1.08→0.82 (foreground + monochrome) so the whole lock
+    fits inside the adaptive-icon safe zone (it was being clipped).
+- Round 8 (timestamp + geofence):
+  - "Updated …" now ticks: `rememberNow()` (15s recomposing clock) drives `relativeTime(epochMs, now)`
+    so "just now" ages to "N min ago" / a clock time without needing to reopen the app.
+  - Geofence confirmation implemented via distance polling: `LocationHelper.currentLocation()` +
+    `AutoLockController` captures the spot at trigger and, when `useGeofence`, polls every 3s during
+    CONFIRMING, firing `DetectionEvent.MovedBeyondGeofence` once you pass `geofenceRadiusMeters`. If it
+    never fires, the 20s confirm timeout still proceeds — so it only ever speeds up confirmation.

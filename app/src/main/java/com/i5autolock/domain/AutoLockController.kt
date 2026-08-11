@@ -2,6 +2,7 @@ package com.i5autolock.domain
 
 import com.i5autolock.data.bluelink.BlueLinkProvider
 import com.i5autolock.data.bluelink.model.CommandResult
+import com.i5autolock.data.bluelink.model.mergedOnto
 import com.i5autolock.data.settings.RunMode
 import com.i5autolock.data.settings.SettingsRepository
 import com.i5autolock.domain.detection.DetectionEvent
@@ -114,12 +115,25 @@ class AutoLockController @Inject constructor(
         log.add(LogLevel.INFO, "Trigger fired — evaluating whether you left the car.")
 
         // Wait until confirmation signals promote us to GRACE (or abort/timeout).
+        // Geofence confirmation: capture where the car is now, then watch for you walking beyond the
+        // configured radius during the confirm window.
+        val geoStart: android.location.Location? =
+            if (settings.useGeofence) locationHelper.currentLocation() else null
+        var lastGeoCheckMs = 0L
         val confirmDeadline = System.currentTimeMillis() + CONFIRM_TIMEOUT_MS
         while (_state.value.detection == DetectionState.CONFIRMING) {
             if (System.currentTimeMillis() > confirmDeadline) {
                 // No corroboration in time — proceed anyway on the BT signal alone.
                 advance(DetectionState.GRACE)
                 break
+            }
+            if (geoStart != null && System.currentTimeMillis() - lastGeoCheckMs > GEO_POLL_MS) {
+                lastGeoCheckMs = System.currentTimeMillis()
+                val here = locationHelper.currentLocation()
+                if (here != null && geoStart.distanceTo(here) >= settings.geofenceRadiusMeters) {
+                    log.add(LogLevel.INFO, "Moved beyond the geofence — confirmed you left.")
+                    machine?.let { advance(it.next(_state.value.detection, DetectionEvent.MovedBeyondGeofence)) }
+                }
             }
             delay(250)
         }
@@ -145,22 +159,39 @@ class AutoLockController @Inject constructor(
             fail("Session expired — please sign in again.")
             return
         }
-        val status = runCatching { client.status(settings.vehicleId, forceRefresh = true) }
+        val rawStatus = runCatching { client.status(settings.vehicleId, forceRefresh = true) }
             .getOrElse { fail("Could not read vehicle status: ${it.message}"); return }
+        // A forced read can be minimal; keep last-known detail so the notification stays complete.
+        val status = rawStatus.mergedOnto(statusCache.cached.first().toVehicleStatus())
 
         // Build the user-customisable status line for the notification.
         val summary = if (settings.showStatusInNotification) {
             StatusSummary.build(status, settings.notificationFields).ifBlank { null }
         } else null
         _state.value = _state.value.copy(statusSummary = summary)
-        statusCache.save(status.lockState.name, StatusSummary.build(status, settings.notificationFields))
+        statusCache.saveStatus(status, StatusSummary.build(status, settings.notificationFields))
 
         when (val decision = LockPolicy.decide(status)) {
             is LockDecision.Skip -> {
                 _state.value = _state.value.copy(detection = DetectionState.SKIPPED, graceRemaining = 0)
                 log.add(LogLevel.INFO, "Skipped: ${decision.reason}.")
             }
-            LockDecision.Lock -> performLock(settings, client, status)
+            LockDecision.Lock -> {
+                if (settings.requireConfirmationBeforeLock) {
+                    _state.value = _state.value.copy(detection = DetectionState.AWAITING_CONFIRM)
+                    log.add(LogLevel.INFO, "Waiting for you to confirm the lock…")
+                    val deadline = System.currentTimeMillis() + CONFIRM_LOCK_TIMEOUT_MS
+                    // "Lock now" (notification/UI) flips skipGrace to confirm.
+                    while (!skipGrace && System.currentTimeMillis() < deadline) delay(250)
+                    if (!skipGrace) {
+                        _state.value = _state.value.copy(detection = DetectionState.ABORTED, graceRemaining = 0)
+                        log.add(LogLevel.INFO, "Lock not confirmed in time — aborted.")
+                        return
+                    }
+                    log.add(LogLevel.SUCCESS, "Lock confirmed.")
+                }
+                performLock(settings, client, status)
+            }
         }
         } catch (c: kotlinx.coroutines.CancellationException) {
             throw c
@@ -201,7 +232,7 @@ class AutoLockController @Inject constructor(
                     lastLockAtEpochMs = System.currentTimeMillis(),
                     statusSummary = summary,
                 )
-                statusCache.save("LOCKED", StatusSummary.build(locked, settings.notificationFields))
+                statusCache.saveStatus(locked, StatusSummary.build(locked, settings.notificationFields))
             }
             CommandResult.RateLimited -> fail("Locking is temporarily rate-limited. Try again shortly.")
             CommandResult.NotAuthenticated -> fail("Not signed in — please log in again.")
@@ -220,5 +251,7 @@ class AutoLockController @Inject constructor(
 
     private companion object {
         const val CONFIRM_TIMEOUT_MS = 20_000L
+        const val CONFIRM_LOCK_TIMEOUT_MS = 120_000L
+        const val GEO_POLL_MS = 3_000L
     }
 }

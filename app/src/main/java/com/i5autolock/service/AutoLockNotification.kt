@@ -16,7 +16,7 @@ object AutoLockNotification {
     const val NOTIFICATION_ID = 4201
 
     /** Persistent "watching" notification shown whenever AutoLock is enabled. */
-    fun buildWatching(context: Context, statusSummary: String? = null): Notification {
+    fun buildWatching(context: Context, statusSummary: String? = null, pinned: Boolean = true): Notification {
         val contentIntent = PendingIntent.getActivity(
             context,
             0,
@@ -29,18 +29,16 @@ object AutoLockNotification {
             Intent(context, AutoLockService::class.java).setAction(AutoLockService.ACTION_STOP_WATCH),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        // If the user swipes the notification away, immediately re-assert it: watching must persist.
+        // If pinned and the user swipes it away, immediately re-assert it so watching stays visible.
         val reviveIntent = PendingIntent.getForegroundService(
             context,
             6,
             Intent(context, AutoLockService::class.java).setAction(AutoLockService.ACTION_START_WATCH),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val text = if (!statusSummary.isNullOrBlank()) {
-            "Monitoring for you leaving the car.\n$statusSummary"
-        } else {
-            "Monitoring for you leaving the car."
-        }
+        // Show the live vehicle status as the main line when we have it; fall back otherwise.
+        val text = statusSummary?.takeIf { it.isNotBlank() }
+            ?: "Monitoring for you leaving the car."
         return NotificationCompat.Builder(context, AutoLockApp.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("AutoLock is watching")
@@ -50,7 +48,7 @@ object AutoLockNotification {
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(contentIntent)
-            .setDeleteIntent(reviveIntent)
+            .apply { if (pinned) setDeleteIntent(reviveIntent) }
             .addAction(0, "Turn off", stopIntent)
             .build()
     }
@@ -73,6 +71,7 @@ object AutoLockNotification {
             DetectionState.CONFIRMING -> "Checking if you left the car" to "Confirming you've walked away…"
             DetectionState.GRACE -> "Locking soon" to "Locking in ${graceRemaining}s. Tap to cancel."
             DetectionState.VERIFYING -> "Verifying" to "Reading vehicle status…"
+            DetectionState.AWAITING_CONFIRM -> "Confirm lock" to "Tap \"Lock now\" to lock your car."
             DetectionState.LOCKING -> "Locking" to "Sending lock command…"
             DetectionState.LOCKED -> "Locked" to "Your car has been locked."
             DetectionState.SKIPPED -> "No action needed" to "Car was already secure."
@@ -80,8 +79,10 @@ object AutoLockNotification {
         }
         val text = if (!statusSummary.isNullOrBlank()) "$baseText\n$statusSummary" else baseText
 
-        // "Lock now" is only useful while we're still waiting (confirming / grace).
-        val canLockNow = showLockNow && (state == DetectionState.CONFIRMING || state == DetectionState.GRACE)
+        val waiting = state == DetectionState.CONFIRMING || state == DetectionState.GRACE ||
+            state == DetectionState.AWAITING_CONFIRM
+        // "Lock now" is useful while we're still waiting (confirming / grace / awaiting confirm).
+        val canLockNow = showLockNow && waiting
 
         val builder = NotificationCompat.Builder(context, AutoLockApp.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -92,7 +93,7 @@ object AutoLockNotification {
             .setOnlyAlertOnce(true)
             .setContentIntent(contentIntent)
 
-        if (state == DetectionState.CONFIRMING || state == DetectionState.GRACE) {
+        if (waiting) {
             builder.addAction(
                 0,
                 "Cancel",

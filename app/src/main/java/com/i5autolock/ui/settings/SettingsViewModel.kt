@@ -15,7 +15,10 @@ import com.i5autolock.data.settings.SettingsRepository
 import com.i5autolock.data.settings.ThemeMode
 import com.i5autolock.domain.ActivityLog
 import com.i5autolock.domain.LogLevel
+import com.i5autolock.service.AutoLockService
+import com.i5autolock.work.StatusRefreshWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +36,7 @@ data class SettingsUiExtras(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val appContext: android.content.Context,
     private val settingsRepo: SettingsRepository,
     private val bluetoothDevices: BluetoothDevices,
     private val provider: BlueLinkProvider,
@@ -81,7 +85,17 @@ class SettingsViewModel @Inject constructor(
         it.copy(notificationFields = next)
     }
     fun setShowLockNowAction(enabled: Boolean) = update { it.copy(showLockNowAction = enabled) }
+    fun setPinNotification(enabled: Boolean) = viewModelScope.launch {
+        settingsRepo.update { it.copy(pinNotification = enabled) }
+        provider.invalidate()
+        // Re-post the watching notification so the new pin behaviour applies immediately.
+        if (settingsRepo.settings.first().enabled) AutoLockService.startWatching(appContext)
+    }
     fun setAutoRefreshOnOpen(enabled: Boolean) = update { it.copy(autoRefreshOnOpen = enabled) }
+    fun setAutoRefreshInterval(minutes: Int) = viewModelScope.launch {
+        settingsRepo.update { it.copy(autoRefreshIntervalMinutes = minutes) }
+        StatusRefreshWorker.schedule(appContext, minutes)
+    }
     fun setHapticOnLock(enabled: Boolean) = update { it.copy(hapticOnLock = enabled) }
     fun setSoundOnLock(enabled: Boolean) = update { it.copy(soundOnLock = enabled) }
     fun setRememberParkedLocation(enabled: Boolean) = update { it.copy(rememberParkedLocation = enabled) }

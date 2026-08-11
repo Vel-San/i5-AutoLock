@@ -54,6 +54,20 @@ class LocationHelper @Inject constructor(
         )
     }
 
+    /** Raw current location (no geocoding) — used for geofence "moved away" confirmation. */
+    suspend fun currentLocation(): android.location.Location? {
+        if (!hasPermission()) return null
+        return try {
+            suspendCancellableCoroutine { cont ->
+                fused.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+                    .addOnSuccessListener { cont.resume(it) }
+                    .addOnFailureListener { cont.resume(null) }
+            }
+        } catch (_: SecurityException) {
+            null
+        }
+    }
+
     private suspend fun reverseGeocode(lat: Double, lng: Double): String? {
         if (!Geocoder.isPresent()) return null
         val geocoder = Geocoder(context, Locale.getDefault())
