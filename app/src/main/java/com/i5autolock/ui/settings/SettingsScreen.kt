@@ -94,6 +94,36 @@ fun SettingsScreen(
         }
     }
 
+    val diagnosticReport by viewModel.diagnosticReport.collectAsStateWithLifecycle()
+    diagnosticReport?.let { report ->
+        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::clearDiagnosticReport,
+            title = { Text(stringResource(R.string.diagnose_title)) },
+            text = {
+                androidx.compose.foundation.layout.Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        report,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = viewModel::clearDiagnosticReport) {
+                    Text(stringResource(R.string.action_close))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                }) { Text(stringResource(R.string.action_copy)) }
+            },
+        )
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize().background(ambientBackground()),
         containerColor = Color.Transparent,
@@ -158,6 +188,16 @@ fun SettingsScreen(
                     } else {
                         Button(onClick = onLogin) { Text(stringResource(R.string.action_sign_in)) }
                     }
+                }
+                if (signedIn) {
+                    OutlinedButton(
+                        onClick = viewModel::checkCredentials,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.set_check_creds)) }
+                    OutlinedButton(
+                        onClick = viewModel::diagnoseApi,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.set_diagnose_api)) }
                 }
                 Text(stringResource(R.string.set_region), fontWeight = FontWeight.Medium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -250,12 +290,19 @@ fun SettingsScreen(
                     stringResource(R.string.set_min_refresh_sub),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Text(stringResource(R.string.set_min_refresh_value, settings.minRefreshSeconds))
+                Text(stringResource(R.string.set_min_refresh_value, formatDuration(settings.minRefreshSeconds)))
                 Slider(
                     value = settings.minRefreshSeconds.toFloat(),
                     onValueChange = { viewModel.setMinRefreshSeconds(it.toInt()) },
-                    valueRange = 3f..30f,
+                    valueRange = 15f..600f,
                 )
+                if (settings.minRefreshSeconds < 60) {
+                    Text(
+                        stringResource(R.string.set_min_refresh_warn),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
 
             // Low 12V battery warning.
@@ -547,6 +594,13 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 private fun formatMinutes(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
+
+/** Human-friendly duration for the refresh-interval label, e.g. 45 → "45s", 180 → "3m". */
+private fun formatDuration(seconds: Int): String = when {
+    seconds < 60 -> "${seconds}s"
+    seconds % 60 == 0 -> "${seconds / 60}m"
+    else -> "${seconds / 60}m ${seconds % 60}s"
+}
 
 /** Opens the system battery-optimization list so the user can exempt AutoLock. */
 private fun openBatterySettings(context: Context) {

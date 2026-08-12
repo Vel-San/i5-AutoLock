@@ -38,7 +38,7 @@ data class SettingsBackup(
     val notificationFields: List<String> = emptyList(),
     val autoRefreshOnOpen: Boolean = true,
     val autoRefreshIntervalMinutes: Int = 0,
-    val minRefreshSeconds: Int = 6,
+    val minRefreshSeconds: Int = 180,
     val hapticOnLock: Boolean = true,
     val soundOnLock: Boolean = false,
     val customLockSoundUri: String? = null,
@@ -101,7 +101,7 @@ data class SettingsBackup(
         carBluetoothName = carBluetoothName,
         vehicleId = vehicleId,
         vehicleNickname = vehicleNickname,
-        knownVehicles = knownVehicles.map { KnownVehicle(it.id, it.nickname, it.model) },
+        knownVehicles = knownVehicles.map { KnownVehicle(it.id, it.nickname, it.model, ccs2 = it.ccs2) },
         accountEmail = accountEmail,
         requireConfirmationBeforeLock = requireConfirmationBeforeLock,
     )
@@ -142,7 +142,7 @@ data class SettingsBackup(
             carBluetoothName = s.carBluetoothName,
             vehicleId = s.vehicleId,
             vehicleNickname = s.vehicleNickname,
-            knownVehicles = s.knownVehicles.map { KnownVehicleBackup(it.id, it.nickname, it.model) },
+            knownVehicles = s.knownVehicles.map { KnownVehicleBackup(it.id, it.nickname, it.model, it.ccs2) },
             accountEmail = s.accountEmail,
             requireConfirmationBeforeLock = s.requireConfirmationBeforeLock,
         )
@@ -150,7 +150,12 @@ data class SettingsBackup(
 }
 
 @Serializable
-data class KnownVehicleBackup(val id: String, val nickname: String, val model: String)
+data class KnownVehicleBackup(
+    val id: String,
+    val nickname: String,
+    val model: String,
+    val ccs2: Boolean = true,
+)
 
 /** Exports/restores non-secret settings to a JSON file (app folder or a user-chosen location). */
 @Singleton

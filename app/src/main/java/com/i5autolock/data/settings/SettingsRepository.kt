@@ -85,7 +85,9 @@ class SettingsRepository @Inject constructor(
         pinNotification = this[Keys.PIN_NOTIF] ?: true,
         autoRefreshOnOpen = this[Keys.AUTO_REFRESH_OPEN] ?: true,
         autoRefreshIntervalMinutes = this[Keys.AUTO_REFRESH_INTERVAL] ?: 0,
-        minRefreshSeconds = this[Keys.MIN_REFRESH_SECONDS] ?: 6,
+        // Old builds stored this as a 3–30s manual-refresh guard; it now governs LIVE polls, so
+        // migrate too-low values up to the safe default to avoid Hyundai's 503 rate limit.
+        minRefreshSeconds = this[Keys.MIN_REFRESH_SECONDS]?.takeIf { it >= 15 }?.coerceAtMost(600) ?: 180,
         customLockSoundUri = this[Keys.CUSTOM_SOUND_URI],
         lowVoltageAlert = this[Keys.LOW_VOLT_ALERT] ?: true,
         lowVoltageThreshold = this[Keys.LOW_VOLT_THRESHOLD] ?: 40,
@@ -111,7 +113,10 @@ class SettingsRepository @Inject constructor(
         vehicleNickname = this[Keys.VEHICLE_NICK],
         knownVehicles = this[Keys.KNOWN_VEHICLES]
             ?.mapNotNull { entry ->
-                entry.split('\u001F').takeIf { it.size >= 3 }?.let { KnownVehicle(it[0], it[1], it[2]) }
+                val parts = entry.split('\u001F')
+                if (parts.size < 3) return@mapNotNull null
+                val ccs2 = parts.getOrNull(3)?.let { it == "1" } ?: true
+                KnownVehicle(parts[0], parts[1], parts[2], ccs2 = ccs2)
             }
             ?: emptyList(),
         accountEmail = this[Keys.ACCOUNT_EMAIL],
@@ -159,7 +164,7 @@ class SettingsRepository @Inject constructor(
             next.vehicleId?.let { prefs[Keys.VEHICLE_ID] = it } ?: prefs.remove(Keys.VEHICLE_ID)
             next.vehicleNickname?.let { prefs[Keys.VEHICLE_NICK] = it } ?: prefs.remove(Keys.VEHICLE_NICK)
             prefs[Keys.KNOWN_VEHICLES] = next.knownVehicles
-                .map { "${it.id}\u001F${it.nickname}\u001F${it.model}" }
+                .map { "${it.id}\u001F${it.nickname}\u001F${it.model}\u001F${if (it.ccs2) "1" else "0"}" }
                 .toSet()
             next.accountEmail?.let { prefs[Keys.ACCOUNT_EMAIL] = it } ?: prefs.remove(Keys.ACCOUNT_EMAIL)
             prefs[Keys.ONBOARDING_DONE] = next.onboardingComplete

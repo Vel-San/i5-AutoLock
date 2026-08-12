@@ -66,9 +66,6 @@ class HomeViewModel @Inject constructor(
     val notice: StateFlow<String?> = _notice
     fun clearNotice() { _notice.value = null }
 
-    // Guard against hammering the (rate-limited) BlueLink API with rapid manual refreshes.
-    private var lastFetchAtMs = 0L
-
     init {
         // Show the last-known status instantly (no blanks on reopen) and keep it in sync with the
         // cache, which is also written by the lock flow and the background refresh worker.
@@ -133,7 +130,7 @@ class HomeViewModel @Inject constructor(
             _vehicleStatus.update { it.copy(needsReauth = true) }
             return@launch
         }
-        when (client.lock(vehicleId)) {
+        when (val result = client.lock(vehicleId)) {
             is com.i5autolock.data.bluelink.model.CommandResult.Success -> {
                 _lockResult.value = "Locked ✓"
                 refreshStatus(force = false)
@@ -143,7 +140,8 @@ class HomeViewModel @Inject constructor(
                 _lockResult.value = "Not signed in."
                 _vehicleStatus.update { it.copy(needsReauth = true) }
             }
-            is com.i5autolock.data.bluelink.model.CommandResult.Failure -> _lockResult.value = "Lock failed."
+            is com.i5autolock.data.bluelink.model.CommandResult.Failure ->
+                _lockResult.value = "Lock failed: ${result.reason}"
         }
     }
 
@@ -171,16 +169,8 @@ class HomeViewModel @Inject constructor(
                 _notice.value = msg
                 return@launch
             }
-            val now = System.currentTimeMillis()
-            val minMs = s.minRefreshSeconds.coerceAtLeast(1) * 1000L
-            if (now - lastFetchAtMs < minMs) {
-                val waitS = ((minMs - (now - lastFetchAtMs)) / 1000 + 1)
-                val msg = "Please wait ${waitS}s before refreshing again."
-                _vehicleStatus.update { it.copy(loading = false, error = msg) }
-                _notice.value = msg
-                return@launch
-            }
-            lastFetchAtMs = now
+            // The minimum live-poll interval is enforced in the client (serves cached within it),
+            // so we don't block the refresh here — no redundant "please wait" guard.
         }
         val vehicleId = s.vehicleId ?: "demo-ioniq5"
         _vehicleStatus.update { it.copy(loading = true, error = null) }

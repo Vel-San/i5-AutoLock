@@ -7,6 +7,8 @@ data class Vehicle(
     val nickname: String,
     val model: String,
     val regDate: String? = null,
+    /** True for CCS2 vehicles (Ioniq 5, EV6, IONIQ 6, newer Kona) — primary protocol for this app. */
+    val ccs2: Boolean = true,
 )
 
 /** Door lock state as reported by the vehicle. */

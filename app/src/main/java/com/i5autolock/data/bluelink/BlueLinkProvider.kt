@@ -5,6 +5,7 @@ import com.i5autolock.data.bluelink.fake.FakeBlueLinkClient
 import com.i5autolock.data.metrics.ApiMetrics
 import com.i5autolock.data.secure.SecureStore
 import com.i5autolock.data.settings.AppSettings
+import com.i5autolock.data.settings.SettingsRepository
 import com.i5autolock.domain.ActivityLog
 import com.i5autolock.domain.LogLevel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,6 +23,7 @@ class BlueLinkProvider @Inject constructor(
     @ApplicationContext private val appContext: android.content.Context,
     private val httpClient: HttpClient,
     private val secureStore: SecureStore,
+    private val settingsRepo: SettingsRepository,
     private val fakeClient: FakeBlueLinkClient,
     private val metrics: ApiMetrics,
     private val activityLog: ActivityLog,
@@ -51,6 +53,8 @@ class BlueLinkProvider @Inject constructor(
                 httpClient,
                 RegionConfig.euHyundai(),
                 secureStore,
+                settingsRepo,
+                metrics,
                 appContext,
                 diag = { activityLog.add(LogLevel.INFO, it) },
             )

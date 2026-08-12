@@ -31,6 +31,8 @@ data class VehicleDto(
     val vehicleName: String = "",
     val type: String = "",
     val regDate: String? = null,
+    val ccuCCS2ProtocolSupport: Int? = null,
+    val protocolType: Int? = null,
 )
 
 @Serializable
@@ -122,4 +124,136 @@ data class DoorOpenDto(
     val frontRight: Int? = null,
     val backLeft: Int? = null,
     val backRight: Int? = null,
+)
+
+// ── CCS2 status DTOs (Ioniq 5 / EV6 / IONIQ 6 use these instead of the v1 shape) ─────────
+//
+// Response shape (only the fields we care about):
+// {"resMsg": {"state": {"Vehicle": {
+//   "Cabin":       {"Door": {"Row1": {"Driver": {"Lock": 1, "Open": 0}, "Passenger": {...}}, "Row2": {...}},
+//                   "HVAC": {...}},
+//   "Drivetrain":  {"FuelSystem": {"DTE": {"Total": {"Value": 400, "Unit": 1}}, "IgnitionStatus": "Off"}},
+//   "Green":       {"BatteryManagement": {"BatteryRemain": {"Ratio": 87}},
+//                   "ChargingInformation": {"Charging": {"RemainTime": ...}}},
+//   "Electronics": {"Battery": {"Level": 78}}
+// }}}}
+
+@Serializable
+data class Ccs2StatusEnvelope(val resMsg: Ccs2ResMsg? = null)
+
+@Serializable
+data class Ccs2ResMsg(val state: Ccs2State? = null)
+
+@Serializable
+data class Ccs2State(
+    @SerialName("Vehicle") val vehicle: Ccs2Vehicle? = null,
+    @SerialName("Date") val date: String? = null,
+)
+
+@Serializable
+data class Ccs2Vehicle(
+    @SerialName("Cabin") val cabin: Ccs2Cabin? = null,
+    @SerialName("Drivetrain") val drivetrain: Ccs2Drivetrain? = null,
+    @SerialName("Green") val green: Ccs2Green? = null,
+    @SerialName("Electronics") val electronics: Ccs2Electronics? = null,
+)
+
+@Serializable
+data class Ccs2Cabin(
+    @SerialName("Door") val door: Ccs2Door? = null,
+    @SerialName("HVAC") val hvac: Ccs2Hvac? = null,
+)
+
+@Serializable
+data class Ccs2Door(
+    @SerialName("Row1") val row1: Ccs2DoorRow? = null,
+    @SerialName("Row2") val row2: Ccs2DoorRow? = null,
+)
+
+@Serializable
+data class Ccs2DoorRow(
+    @SerialName("Driver") val driver: Ccs2DoorState? = null,
+    @SerialName("Passenger") val passenger: Ccs2DoorState? = null,
+    @SerialName("Left") val left: Ccs2DoorState? = null,
+    @SerialName("Right") val right: Ccs2DoorState? = null,
+)
+
+@Serializable
+data class Ccs2DoorState(
+    @SerialName("Lock") val lock: Int? = null,
+    @SerialName("Open") val open: Int? = null,
+)
+
+@Serializable
+data class Ccs2Hvac(
+    @SerialName("Row1") val row1: Ccs2HvacRow? = null,
+)
+
+@Serializable
+data class Ccs2HvacRow(
+    @SerialName("HVAC") val hvac: Ccs2HvacStatus? = null,
+)
+
+@Serializable
+data class Ccs2HvacStatus(
+    @SerialName("Active") val active: Int? = null,
+)
+
+@Serializable
+data class Ccs2Drivetrain(
+    @SerialName("FuelSystem") val fuelSystem: Ccs2FuelSystem? = null,
+)
+
+@Serializable
+data class Ccs2FuelSystem(
+    @SerialName("DTE") val dte: Ccs2Dte? = null,
+    @SerialName("IgnitionStatus") val ignitionStatus: String? = null,
+)
+
+@Serializable
+data class Ccs2Dte(
+    @SerialName("Total") val total: Ccs2DteValue? = null,
+)
+
+@Serializable
+data class Ccs2DteValue(
+    @SerialName("Value") val value: Double? = null,
+    @SerialName("Unit") val unit: Int? = null,
+)
+
+@Serializable
+data class Ccs2Green(
+    @SerialName("BatteryManagement") val batteryManagement: Ccs2BatteryManagement? = null,
+    @SerialName("ChargingInformation") val chargingInformation: Ccs2ChargingInformation? = null,
+    @SerialName("DrivingReady") val drivingReady: Int? = null,
+)
+
+@Serializable
+data class Ccs2BatteryManagement(
+    @SerialName("BatteryRemain") val batteryRemain: Ccs2BatteryRemain? = null,
+)
+
+@Serializable
+data class Ccs2BatteryRemain(
+    @SerialName("Ratio") val ratio: Double? = null,
+)
+
+@Serializable
+data class Ccs2ChargingInformation(
+    @SerialName("Charging") val charging: Ccs2Charging? = null,
+)
+
+@Serializable
+data class Ccs2Charging(
+    @SerialName("RemainTime") val remainTime: Double? = null,
+)
+
+@Serializable
+data class Ccs2Electronics(
+    @SerialName("Battery") val battery: Ccs2AuxBattery? = null,
+)
+
+@Serializable
+data class Ccs2AuxBattery(
+    @SerialName("Level") val level: Int? = null,
 )

@@ -58,6 +58,11 @@ class SettingsViewModel @Inject constructor(
     val notice: StateFlow<String?> = _notice
     fun clearNotice() { _notice.value = null }
 
+    // Multi-line diagnostic report shown in a scrollable dialog.
+    private val _diagnosticReport = MutableStateFlow<String?>(null)
+    val diagnosticReport: StateFlow<String?> = _diagnosticReport
+    fun clearDiagnosticReport() { _diagnosticReport.value = null }
+
     init {
         refreshDevices()
         // Auth checks read the encrypted token store (Keystore/crypto) which is slow on first access,
@@ -116,7 +121,7 @@ class SettingsViewModel @Inject constructor(
     fun setCustomLockSoundUri(uri: String?) = update { it.copy(customLockSoundUri = uri) }
     fun setLowVoltageAlert(enabled: Boolean) = update { it.copy(lowVoltageAlert = enabled) }
     fun setLowVoltageThreshold(percent: Int) = update { it.copy(lowVoltageThreshold = percent.coerceIn(5, 100)) }
-    fun setMinRefreshSeconds(seconds: Int) = update { it.copy(minRefreshSeconds = seconds.coerceIn(1, 60)) }
+    fun setMinRefreshSeconds(seconds: Int) = update { it.copy(minRefreshSeconds = seconds.coerceIn(15, 600)) }
     fun setShowAppBadge(enabled: Boolean) = viewModelScope.launch {
         settingsRepo.update { it.copy(showAppBadge = enabled) }
         // Badge visibility is a channel property — recreate it, then re-post the watching
@@ -166,7 +171,7 @@ class SettingsViewModel @Inject constructor(
         if (loaded.isNotEmpty()) {
             // Cache the list so it persists across restarts and offline sessions.
             settingsRepo.update { st ->
-                st.copy(knownVehicles = loaded.map { KnownVehicle(it.id, it.nickname, it.model) })
+                st.copy(knownVehicles = loaded.map { KnownVehicle(it.id, it.nickname, it.model, ccs2 = it.ccs2) })
             }
             _extras.value = _extras.value.copy(loadingVehicles = false, vehicles = loaded)
         } else {
@@ -180,6 +185,67 @@ class SettingsViewModel @Inject constructor(
         settingsRepo.update { it.copy(accountEmail = null, vehicleId = null, vehicleNickname = null, knownVehicles = emptyList()) }
         _extras.value = _extras.value.copy(signedIn = false, vehicles = emptyList())
         log.add(LogLevel.INFO, "Signed out.")
+    }
+
+    /** Verifies the current EU session by hitting the vehicles endpoint. Reports via _notice + log. */
+    fun checkCredentials() = viewModelScope.launch {
+        val s = settingsRepo.settings.first()
+        // Always test the REAL client, even if Demo mode is on.
+        val real = provider.client(s.copy(demoMode = false))
+        if (!withContext(Dispatchers.IO) { real.isAuthenticated() }) {
+            val msg = appContext.getString(com.i5autolock.R.string.check_creds_no_session)
+            _notice.value = msg
+            log.add(LogLevel.WARN, msg)
+            return@launch
+        }
+        val fresh = withContext(Dispatchers.IO) { runCatching { real.ensureFreshSession() }.getOrDefault(false) }
+        if (!fresh) {
+            val msg = appContext.getString(com.i5autolock.R.string.check_creds_refresh_failed)
+            _notice.value = msg
+            log.add(LogLevel.ERROR, msg)
+            return@launch
+        }
+        val result = withContext(Dispatchers.IO) { runCatching { real.vehicles() } }
+        result.onSuccess { list ->
+            val protocols = list.joinToString(", ") { v ->
+                val proto = if (v.ccs2) "CCS2" else "legacy"
+                "${v.nickname} ($proto)"
+            }
+            val msg = if (list.isEmpty()) appContext.getString(com.i5autolock.R.string.check_creds_ok, list.size)
+                      else appContext.getString(com.i5autolock.R.string.check_creds_ok_protocols, list.size, protocols)
+            _notice.value = msg
+            log.add(LogLevel.SUCCESS, msg)
+        }.onFailure { t ->
+            val detail = t.message ?: t::class.simpleName ?: "unknown error"
+            val msg = appContext.getString(com.i5autolock.R.string.check_creds_failed, detail)
+            _notice.value = msg
+            log.add(LogLevel.ERROR, msg)
+        }
+    }
+
+    /** Probes 3 EU endpoints in sequence and shows a report — proves whether a 503 is our code or Hyundai. */
+    fun diagnoseApi() = viewModelScope.launch {
+        val s = settingsRepo.settings.first()
+        val vehicleId = s.vehicleId
+        if (vehicleId.isNullOrBlank()) {
+            _notice.value = appContext.getString(com.i5autolock.R.string.diagnose_no_vehicle)
+            return@launch
+        }
+        val real = provider.client(s.copy(demoMode = false))
+        val report = withContext(Dispatchers.IO) {
+            runCatching { real.diagnose(vehicleId) }
+                .getOrElse { "✗ Diagnosis failed: ${it.message ?: it::class.simpleName}" }
+        }
+        _diagnosticReport.value = report
+        report.split("\n").forEach { line ->
+            if (line.isBlank()) return@forEach
+            val level = when {
+                line.startsWith("✓") -> LogLevel.SUCCESS
+                line.startsWith("✗") -> LogLevel.ERROR
+                else -> LogLevel.INFO
+            }
+            log.add(level, line)
+        }
     }
 
     // ── Backup & restore ────────────────────────────────────────────────
@@ -214,4 +280,4 @@ class SettingsViewModel @Inject constructor(
 }
 
 private fun KnownVehicle.toVehicle(): Vehicle =
-    Vehicle(id = id, vin = "", nickname = nickname, model = model)
+    Vehicle(id = id, vin = "", nickname = nickname, model = model, ccs2 = ccs2)

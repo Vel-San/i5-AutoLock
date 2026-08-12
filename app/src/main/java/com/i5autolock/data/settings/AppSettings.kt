@@ -16,7 +16,13 @@ enum class RunMode {
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** A vehicle previously loaded from the account, cached so the picker survives app restarts. */
-data class KnownVehicle(val id: String, val nickname: String, val model: String)
+data class KnownVehicle(
+    val id: String,
+    val nickname: String,
+    val model: String,
+    /** True for CCS2 vehicles (Ioniq 5, EV6, IONIQ 6, newer Kona). Default true — our primary target. */
+    val ccs2: Boolean = true,
+)
 
 /** Pieces of vehicle info the user can show/hide in the ongoing notification. */
 enum class NotificationField(@StringRes val labelRes: Int) {
@@ -53,8 +59,8 @@ data class AppSettings(
     val autoRefreshOnOpen: Boolean = true,
     // Periodic background status refresh in minutes (0 = off; min effective 15 via WorkManager).
     val autoRefreshIntervalMinutes: Int = 0,
-    // Minimum seconds between manual refreshes (rate-limit friendliness).
-    val minRefreshSeconds: Int = 6,
+    // Minimum seconds between LIVE vehicle polls (forced refresh wakes the car; too often = 503).
+    val minRefreshSeconds: Int = 180,
     val hapticOnLock: Boolean = true,
     val soundOnLock: Boolean = false,
     // Optional custom lock sound (content URI). Null = the built-in EV chime.

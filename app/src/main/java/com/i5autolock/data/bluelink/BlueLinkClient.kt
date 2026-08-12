@@ -59,4 +59,12 @@ interface BlueLinkClient {
 
     /** Drop the local session (logout). */
     suspend fun clearSession()
+
+    /**
+     * Probes the three key EU endpoints in order and returns a multi-line human-readable report.
+     * Used to isolate 503s: if vehicles/list + cached status work but the live poll fails, the
+     * problem is server-side (Hyundai rate limit / degradation), not our code or credentials.
+     * Non-EU regions return a "not supported" line.
+     */
+    suspend fun diagnose(vehicleId: String): String = "Diagnostics not supported for this region."
 }

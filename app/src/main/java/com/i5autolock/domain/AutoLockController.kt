@@ -162,9 +162,12 @@ class AutoLockController @Inject constructor(
             fail("Session expired — please sign in again.")
             return
         }
-        val rawStatus = runCatching { client.status(settings.vehicleId, forceRefresh = true) }
+        // Read the CACHED status (carstatus/latest) — never wake the car for the pre-lock check.
+        // This matches the evcc reference implementation and avoids hitting Hyundai's live-poll
+        // rate limit ("temporary 503"). Manual refresh from Home remains a live poll.
+        val rawStatus = runCatching { client.status(settings.vehicleId, forceRefresh = false) }
             .getOrElse { fail("Could not read vehicle status: ${it.message}"); return }
-        // A forced read can be minimal; keep last-known detail so the notification stays complete.
+        // Keep last-known detail so the notification stays complete.
         val status = rawStatus.mergedOnto(statusCache.cached.first().toVehicleStatus())
 
         // Build the user-customisable status line for the notification.

@@ -50,6 +50,8 @@ class MeteredBlueLinkClient(
 
     override suspend fun clearSession() = delegate.clearSession()
 
+    override suspend fun diagnose(vehicleId: String): String = delegate.diagnose(vehicleId)
+
     private suspend fun <T> measured(op: String, block: suspend () -> Pair<ApiOutcome, T>): T {
         val start = System.nanoTime()
         try {
