@@ -71,6 +71,9 @@
     <string name="action_sign_in">Sign in</string>
     <string name="action_lock_now">Lock now</string>
     <string name="action_already_locked">Already locked</string>
+    <string name="action_unlock_now">Unlock now</string>
+    <string name="action_already_unlocked">Already unlocked</string>
+    <string name="msg_copied">Copied to clipboard</string>
     <string name="badge_demo">DEMO</string>
     <string name="badge_dry_run">DRY RUN</string>
     <string name="badge_armed">ARMED</string>
@@ -94,6 +97,9 @@
     <string name="home_lock_dialog_title">Lock the car now?</string>
     <string name="home_lock_dialog_pin">Enter your BlueLink PIN to send a real lock command.</string>
     <string name="home_lock_dialog_plain">This sends a lock command to your car.</string>
+    <string name="home_unlock_dialog_title">Unlock the car now?</string>
+    <string name="home_unlock_dialog_pin">Enter your BlueLink PIN to send a real unlock command.</string>
+    <string name="home_unlock_dialog_plain">This sends an unlock command to your car.</string>
     <string name="home_pin_label">PIN</string>
     <string name="home_system_status">SYSTEM STATUS</string>
     <string name="home_watching">Watching</string>

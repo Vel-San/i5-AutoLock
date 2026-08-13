@@ -50,5 +50,34 @@ data class RegionConfig(
             idpBaseUrl = "https://idpconnect-eu.hyundai.com",
             idpRedirectUri = "https://prd.eu-ccapi.hyundai.com:8080/api/v1/user/oauth2/token",
         )
+
+        // ─────────────────────────────────────────────────────────────────────────────────────
+        // FUTURE: Hyundai "OneApp" (new myHyundai app) config. Extracted from the OneApp config
+        // JSON — NOT wired up. OneApp is a distinct backend from the classic CCS API above:
+        // different client_id, different API domain, different OAuth scope + redirect. The IDP
+        // is shared (idpconnect-eu.hyundai.com). Ported partial only; a real migration needs
+        // captured vehicle/control request shapes from OneApp traffic. Track upstream community
+        // projects (bluelinky, hyundai_kia_connect_api) before rewriting.
+        //
+        //   client_id      = 4f4953b5-02e1-4dbc-8599-87e983ee1be5
+        //   api domain     = https://cci-api-eu.hyundai.com   (prod)
+        //                    https://pilot-cci-api-eu.hyundai.com  (staging)
+        //   redirect_uri   = https://oneapp.hyundai.com/redirect
+        //   scope          = account.token.transfer account.id.generate
+        //                    account.puid.userinfos account.userinfo read
+        //                    account.userinfos puid email name mobileNum birthdate
+        //                    lang country signUpDate gender nationInfo certProfile offline
+        //   authorize URL  = https://idpconnect-eu.hyundai.com/auth/api/v2/user/oauth2/authorize
+        //   logout URL     = https://idpconnect-eu.hyundai.com/auth/api/v1/accounts/signout
+        //   ccs enrol URL  = https://prd.eu-ccapi.hyundai.com:8080/api/v1/profile/cci/vehicles
+        //
+        // NOT captured (needs a real device capture):
+        //   - client_secret (if OAuth grant is confidential; may be PKCE-only)
+        //   - stamp cfb (if OneApp still uses the CCS Stamp header)
+        //   - vehicle / status / control endpoint paths on cci-api-eu.hyundai.com
+        //   - request/response shapes for status + door control
+        //
+        // Only add euHyundaiOneApp() once we have all of the above verified.
+        // ─────────────────────────────────────────────────────────────────────────────────────
     }
 }

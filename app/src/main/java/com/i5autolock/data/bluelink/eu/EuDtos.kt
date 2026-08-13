@@ -132,11 +132,12 @@ data class DoorOpenDto(
 // {"resMsg": {"state": {"Vehicle": {
 //   "Cabin":       {"Door": {"Row1": {"Driver": {"Lock": 1, "Open": 0}, "Passenger": {...}}, "Row2": {...}},
 //                   "HVAC": {...}},
-//   "Drivetrain":  {"FuelSystem": {"DTE": {"Total": {"Value": 400, "Unit": 1}}, "IgnitionStatus": "Off"}},
+//   "Drivetrain":  {"FuelSystem": {"DTE": {"EV": 234, "Total": 234, "Unit": 1}, "IgnitionStatus": "Off"}},
 //   "Green":       {"BatteryManagement": {"BatteryRemain": {"Ratio": 87}},
 //                   "ChargingInformation": {"Charging": {"RemainTime": ...}}},
 //   "Electronics": {"Battery": {"Level": 78}}
 // }}}}
+// NB: DTE is flat — Total/EV are numeric ranges, Unit is a sibling (1=km, 3=miles).
 
 @Serializable
 data class Ccs2StatusEnvelope(val resMsg: Ccs2ResMsg? = null)
@@ -212,12 +213,9 @@ data class Ccs2FuelSystem(
 
 @Serializable
 data class Ccs2Dte(
-    @SerialName("Total") val total: Ccs2DteValue? = null,
-)
-
-@Serializable
-data class Ccs2DteValue(
-    @SerialName("Value") val value: Double? = null,
+    // Real CCS2 shape (Ioniq 5): {"EV":234,"Total":234,"Unit":1} — flat numbers, NOT a {Value,Unit} object.
+    @SerialName("Total") val total: Double? = null,
+    @SerialName("EV") val ev: Double? = null,
     @SerialName("Unit") val unit: Int? = null,
 )
 

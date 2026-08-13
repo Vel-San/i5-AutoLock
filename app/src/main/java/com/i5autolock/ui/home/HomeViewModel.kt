@@ -133,7 +133,17 @@ class HomeViewModel @Inject constructor(
         when (val result = client.lock(vehicleId)) {
             is com.i5autolock.data.bluelink.model.CommandResult.Success -> {
                 _lockResult.value = "Locked ✓"
-                refreshStatus(force = false)
+                // Optimistic UI: cached endpoint won't reflect the new state until the car reports
+                // back to Hyundai (can be minutes, longer under 503 cooldown). Update locally and
+                // skip an immediate refresh — a fresh cached read would overwrite this with stale.
+                _vehicleStatus.update { ui ->
+                    val next = ui.status?.copy(
+                        lockState = com.i5autolock.data.bluelink.model.LockState.LOCKED,
+                        anyDoorOpen = false,
+                        timestamp = System.currentTimeMillis(),
+                    )
+                    ui.copy(status = next, lastRefreshEpochMs = System.currentTimeMillis())
+                }
             }
             com.i5autolock.data.bluelink.model.CommandResult.RateLimited -> _lockResult.value = "Rate-limited — try again shortly."
             com.i5autolock.data.bluelink.model.CommandResult.NotAuthenticated -> {
@@ -142,6 +152,42 @@ class HomeViewModel @Inject constructor(
             }
             is com.i5autolock.data.bluelink.model.CommandResult.Failure ->
                 _lockResult.value = "Lock failed: ${result.reason}"
+        }
+    }
+
+    /** Manually unlock now — gated by the BlueLink PIN when one is stored. */
+    fun manualUnlock(pin: String?) = viewModelScope.launch {
+        val s = settingsRepo.settings.first()
+        val stored = secureStore.loadPin()
+        if (stored != null && pin != stored) {
+            _lockResult.value = "Incorrect PIN."
+            return@launch
+        }
+        val vehicleId = s.vehicleId ?: run { _lockResult.value = "No vehicle selected."; return@launch }
+        val client = provider.client(s)
+        if (!s.demoMode && !client.ensureFreshSession()) {
+            _lockResult.value = "Session expired — sign in again."
+            _vehicleStatus.update { it.copy(needsReauth = true) }
+            return@launch
+        }
+        when (val result = client.unlock(vehicleId)) {
+            is com.i5autolock.data.bluelink.model.CommandResult.Success -> {
+                _lockResult.value = "Unlocked ✓"
+                _vehicleStatus.update { ui ->
+                    val next = ui.status?.copy(
+                        lockState = com.i5autolock.data.bluelink.model.LockState.UNLOCKED,
+                        timestamp = System.currentTimeMillis(),
+                    )
+                    ui.copy(status = next, lastRefreshEpochMs = System.currentTimeMillis())
+                }
+            }
+            com.i5autolock.data.bluelink.model.CommandResult.RateLimited -> _lockResult.value = "Rate-limited — try again shortly."
+            com.i5autolock.data.bluelink.model.CommandResult.NotAuthenticated -> {
+                _lockResult.value = "Not signed in."
+                _vehicleStatus.update { it.copy(needsReauth = true) }
+            }
+            is com.i5autolock.data.bluelink.model.CommandResult.Failure ->
+                _lockResult.value = "Unlock failed: ${result.reason}"
         }
     }
 

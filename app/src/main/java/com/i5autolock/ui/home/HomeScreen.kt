@@ -98,6 +98,8 @@ import com.i5autolock.ui.theme.PixelField
 import com.i5autolock.ui.theme.ScanningPixelBand
 import com.i5autolock.ui.theme.ambientBackground
 import com.i5autolock.ui.theme.brandGradient
+import com.i5autolock.ui.util.copyToClipboard
+import com.i5autolock.ui.util.toClipboardText
 import com.i5autolock.ui.theme.heroGlow
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -119,7 +121,8 @@ fun HomeScreen(
     val notice by viewModel.notice.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
-    var showLockDialog by remember { mutableStateOf(false) }
+    // null = no dialog; true = lock; false = unlock.
+    var pendingCommand by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(lockResult) {
         lockResult?.let {
             android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -132,11 +135,15 @@ fun HomeScreen(
             viewModel.clearNotice()
         }
     }
-    if (showLockDialog) {
-        LockNowDialog(
+    pendingCommand?.let { isLock ->
+        LockCommandDialog(
+            lock = isLock,
             requirePin = viewModel.hasPin(),
-            onDismiss = { showLockDialog = false },
-            onConfirm = { pin -> showLockDialog = false; viewModel.manualLock(pin) },
+            onDismiss = { pendingCommand = null },
+            onConfirm = { pin ->
+                pendingCommand = null
+                if (isLock) viewModel.manualLock(pin) else viewModel.manualUnlock(pin)
+            },
         )
     }
 
@@ -243,24 +250,63 @@ fun HomeScreen(
                             }
                             if (settings.isConfigured || settings.demoMode) {
                                 val alreadyLocked = vehicleStatus.status?.lockState == LockState.LOCKED
-                                Button(
-                                    onClick = { showLockDialog = true },
-                                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                                    shape = RoundedCornerShape(18.dp),
-                                    enabled = !alreadyLocked,
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
+                                val alreadyUnlocked = vehicleStatus.status?.lockState == LockState.UNLOCKED
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                 ) {
-                                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        if (alreadyLocked) stringResource(R.string.action_already_locked) else stringResource(R.string.action_lock_now),
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
+                                    Button(
+                                        onClick = { pendingCommand = true },
+                                        modifier = Modifier.weight(1f).height(52.dp),
+                                        shape = RoundedCornerShape(18.dp),
+                                        enabled = !alreadyLocked,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        ),
+                                    ) {
+                                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            if (alreadyLocked) stringResource(R.string.action_already_locked) else stringResource(R.string.action_lock_now),
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                    Button(
+                                        onClick = { pendingCommand = false },
+                                        modifier = Modifier.weight(1f).height(52.dp),
+                                        shape = RoundedCornerShape(18.dp),
+                                        enabled = !alreadyUnlocked,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                        ),
+                                    ) {
+                                        Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            if (alreadyUnlocked) stringResource(R.string.action_already_unlocked) else stringResource(R.string.action_unlock_now),
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                    item { SectionHeader(stringResource(R.string.home_recent_activity)) }
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            SectionHeader(stringResource(R.string.home_recent_activity))
+                            if (log.isNotEmpty()) {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    context.copyToClipboard("AutoLock activity log", log.toClipboardText())
+                                }) { Text(stringResource(R.string.action_copy)) }
+                            }
+                        }
+                    }
                     item { ActivityLogCard(log) }
                 }
             }
@@ -269,17 +315,20 @@ fun HomeScreen(
 }
 
 @Composable
-private fun LockNowDialog(requirePin: Boolean, onDismiss: () -> Unit, onConfirm: (String?) -> Unit) {
+private fun LockCommandDialog(lock: Boolean, requirePin: Boolean, onDismiss: () -> Unit, onConfirm: (String?) -> Unit) {
     var pin by remember { mutableStateOf("") }
+    val titleRes = if (lock) R.string.home_lock_dialog_title else R.string.home_unlock_dialog_title
+    val pinBodyRes = if (lock) R.string.home_lock_dialog_pin else R.string.home_unlock_dialog_pin
+    val plainBodyRes = if (lock) R.string.home_lock_dialog_plain else R.string.home_unlock_dialog_plain
+    val actionRes = if (lock) R.string.action_lock_now else R.string.action_unlock_now
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text(stringResource(R.string.home_lock_dialog_title)) },
+        icon = { Icon(if (lock) Icons.Default.Lock else Icons.Default.LockOpen, contentDescription = null) },
+        title = { Text(stringResource(titleRes)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    if (requirePin) stringResource(R.string.home_lock_dialog_pin)
-                    else stringResource(R.string.home_lock_dialog_plain),
+                    if (requirePin) stringResource(pinBodyRes) else stringResource(plainBodyRes),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (requirePin) {
@@ -298,7 +347,12 @@ private fun LockNowDialog(requirePin: Boolean, onDismiss: () -> Unit, onConfirm:
             Button(
                 onClick = { onConfirm(pin.ifBlank { null }) },
                 enabled = !requirePin || pin.length >= 4,
-            ) { Text(stringResource(R.string.action_lock_now)) }
+                colors = if (lock) ButtonDefaults.buttonColors()
+                else ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                ),
+            ) { Text(stringResource(actionRes)) }
         },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )

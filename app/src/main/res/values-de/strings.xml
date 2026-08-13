@@ -71,6 +71,9 @@
     <string name="action_sign_in">Anmelden</string>
     <string name="action_lock_now">Jetzt verriegeln</string>
     <string name="action_already_locked">Bereits verriegelt</string>
+    <string name="action_unlock_now">Jetzt entriegeln</string>
+    <string name="action_already_unlocked">Bereits entriegelt</string>
+    <string name="msg_copied">In die Zwischenablage kopiert</string>
     <string name="badge_demo">DEMO</string>
     <string name="badge_dry_run">PROBELAUF</string>
     <string name="badge_armed">SCHARF</string>
@@ -94,6 +97,9 @@
     <string name="home_lock_dialog_title">Auto jetzt verriegeln?</string>
     <string name="home_lock_dialog_pin">Gib deine BlueLink-PIN ein, um einen echten Verriegelungsbefehl zu senden.</string>
     <string name="home_lock_dialog_plain">Dadurch wird ein Verriegelungsbefehl an dein Auto gesendet.</string>
+    <string name="home_unlock_dialog_title">Auto jetzt entriegeln?</string>
+    <string name="home_unlock_dialog_pin">Gib deine BlueLink-PIN ein, um einen echten Entriegelungsbefehl zu senden.</string>
+    <string name="home_unlock_dialog_plain">Dadurch wird ein Entriegelungsbefehl an dein Auto gesendet.</string>
     <string name="home_pin_label">PIN</string>
     <string name="home_system_status">SYSTEMSTATUS</string>
     <string name="home_watching">Überwacht</string>

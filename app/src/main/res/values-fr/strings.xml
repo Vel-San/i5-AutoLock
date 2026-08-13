@@ -71,6 +71,9 @@
     <string name="action_sign_in">Se connecter</string>
     <string name="action_lock_now">Verrouiller maintenant</string>
     <string name="action_already_locked">Déjà verrouillé</string>
+    <string name="action_unlock_now">Déverrouiller maintenant</string>
+    <string name="action_already_unlocked">Déjà déverrouillé</string>
+    <string name="msg_copied">Copié dans le presse-papiers</string>
     <string name="badge_demo">DÉMO</string>
     <string name="badge_dry_run">SIMULATION</string>
     <string name="badge_armed">ARMÉ</string>
@@ -94,6 +97,9 @@
     <string name="home_lock_dialog_title">Verrouiller la voiture maintenant ?</string>
     <string name="home_lock_dialog_pin">Saisissez votre code PIN BlueLink pour envoyer une vraie commande de verrouillage.</string>
     <string name="home_lock_dialog_plain">Ceci envoie une commande de verrouillage à votre voiture.</string>
+    <string name="home_unlock_dialog_title">Déverrouiller la voiture maintenant ?</string>
+    <string name="home_unlock_dialog_pin">Saisissez votre code PIN BlueLink pour envoyer une vraie commande de déverrouillage.</string>
+    <string name="home_unlock_dialog_plain">Ceci envoie une commande de déverrouillage à votre voiture.</string>
     <string name="home_pin_label">Code PIN</string>
     <string name="home_system_status">ÉTAT DU SYSTÈME</string>
     <string name="home_watching">Surveille</string>

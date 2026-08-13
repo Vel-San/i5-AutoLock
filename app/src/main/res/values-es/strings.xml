@@ -71,6 +71,9 @@
     <string name="action_sign_in">Iniciar sesión</string>
     <string name="action_lock_now">Bloquear ahora</string>
     <string name="action_already_locked">Ya bloqueado</string>
+    <string name="action_unlock_now">Desbloquear ahora</string>
+    <string name="action_already_unlocked">Ya desbloqueado</string>
+    <string name="msg_copied">Copiado al portapapeles</string>
     <string name="badge_demo">DEMO</string>
     <string name="badge_dry_run">PRUEBA</string>
     <string name="badge_armed">ACTIVADO</string>
@@ -94,6 +97,9 @@
     <string name="home_lock_dialog_title">¿Bloquear el coche ahora?</string>
     <string name="home_lock_dialog_pin">Introduce tu PIN de BlueLink para enviar un bloqueo real.</string>
     <string name="home_lock_dialog_plain">Esto envía un comando de bloqueo a tu coche.</string>
+    <string name="home_unlock_dialog_title">¿Desbloquear el coche ahora?</string>
+    <string name="home_unlock_dialog_pin">Introduce tu PIN de BlueLink para enviar un desbloqueo real.</string>
+    <string name="home_unlock_dialog_plain">Esto envía un comando de desbloqueo a tu coche.</string>
     <string name="home_pin_label">PIN</string>
     <string name="home_system_status">ESTADO DEL SISTEMA</string>
     <string name="home_watching">Vigilando</string>

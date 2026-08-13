@@ -481,6 +481,47 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
     injects `BackupManager`, adds a `_notice` toast flow + `exportToAppFolder`/`exportToUri`/`restoreFromUri`
     (restore calls `provider.invalidate()`). Settings → "Backup & restore" section (Export to app folder /
     Export to… / Restore from file); strings in all five locales.
+- Round 17 (CCS2 DTE parse fix): live Ioniq 5 CCS2 responses have a **flat** `DTE` object
+  (`{"EV":234,"Total":234,"Unit":1}`) — `Total`/`EV` are numeric ranges and `Unit` is a sibling — not the
+  nested `Total:{Value,Unit}` shape suggested by older docs. That mismatch made the whole `carstatus/latest`
+  payload fail with `Expected start of the object, but had '2'` at `$.resMsg.state.Vehicle.Drivetrain.FuelSystem.DTE`,
+  wiping the vehicle card on refresh. `Ccs2Dte` is now flat (`ev`, `total`, `unit`), `Ccs2DteValue` removed,
+  and `parseCcs2Status` reads `dte.total ?: dte.ev` with the sibling `dte.unit` (1=km, 3=miles). Unrelated:
+  the intermittent `503 "Unavailable remote control"` on `ccs2/carstatus` (wake) is Hyundai's server; the
+  client already falls back to `ccs2/carstatus/latest`, so no code change needed there.
+- Round 18 (silent lock/unlock failure — CCSP envelope validation): symptom was the API log showing
+  `POST …/ccs2/control/door → 200 ✓` yet the physical car doing nothing and myHyundai showing no change.
+  Root cause: Hyundai's CCSP frequently answers **HTTP 200 with `{"retCode":"F","resCode":"…","resMsg":"…"}`**
+  when the car rejects a command (offline, ignition, state check, backend cooldown) — but
+  `sendDoorCommand` only checked `response.ok()` (HTTP 2xx) and reported success. Added
+  `readCommandOutcome(HttpResponse)` in `EuBlueLinkClient`: reads the response body once, tolerates
+  `resMsg` being either a string or an object, extracts `retCode/resCode/resMsg/msgId`, and only
+  reports success when `retCode == "S"` (falls back to HTTP-status truth for empty / non-JSON bodies).
+  Both the CCS2 (`/api/v2/spa/vehicles/{id}/ccs2/control/door`, body `{"command":"close|open"}`) and
+  legacy v1 (`/api/v1/spa/vehicles/{id}/control/door`, body `{"action":"…","deviceId":"…"}`) success
+  branches now use it: on real success the activity log includes `retCode/resCode/msgId`; on
+  200-but-failure it logs `HTTP 200 but body says failure … | body: …` and returns
+  `CommandResult.Failure("Car rejected close: <resMsg>")` so the UI toast surfaces Hyundai's actual
+  reason instead of a false green tick. Endpoints/payloads themselves are unchanged (verified against
+  BlueDeck, bluelinky, and `hyundai_kia_connect_api`). No polling of `msgId` yet — the reference libs
+  don't poll either, and the retCode check alone catches the "silent failure" class of bugs.
+- Round 19 (silent lock/unlock failure — async msgId polling): Round 18 caught the "backend rejected"
+  class of failures, but the user hit a second, more subtle class: **HTTP 200 + `retCode:"S" resCode:"0000"
+  msgId:…`** — the backend fully queued the request — yet the car itself never executed it and stayed
+  locked. Reason: EU CCS2 control commands are **asynchronous**. `retCode:"S"` only means "queued in
+  CCSP"; the car's actual execution result appears later on a separate polling endpoint,
+  `GET /api/v2/spa/notifications/{vehicleId}/records`, keyed by `recordId == msgId`, with
+  `result: "success" / "fail" / (pending)` and a `resultCode`. `hyundai_kia_connect_api` and `bluelinky`
+  both use this. Added `pollCommandStatus(vehicleId, msgId, timeoutMs=30_000, pollEveryMs=3_000)` +
+  `confirmActionOrReport()` in `EuBlueLinkClient`; both the CCS2 and v1 success branches of
+  `sendDoorCommand` now switch from "queued → Success" to "queued → poll → report actual outcome":
+  `Success("Locked"/"Unlocked")` only when the car reports `result:"success"`; `Failure("Car reported
+  close failed (resultCode X) — likely offline, asleep or state-blocked")` on `result:"fail"`; and
+  `Failure("Command queued but the car didn't confirm within 30s. It may be offline / in a poor signal
+  area / asleep. Try again in a minute.")` on timeout. Activity log now shows `queued…` on dispatch and
+  `action poll: ✓ close confirmed by car (resultCode=0000)` on real completion (or the failure/timeout
+  equivalents), so the UI can no longer report a false green tick. Endpoints/headers unchanged; the
+  poll uses regular authed CCSP headers.
 
 
 

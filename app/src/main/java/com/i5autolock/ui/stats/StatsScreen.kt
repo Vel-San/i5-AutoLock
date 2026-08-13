@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +47,8 @@ import com.i5autolock.data.metrics.ApiOutcome
 import com.i5autolock.domain.LogEntry
 import com.i5autolock.domain.LogLevel
 import com.i5autolock.ui.theme.ambientBackground
+import com.i5autolock.ui.util.copyToClipboard
+import com.i5autolock.ui.util.toClipboardText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -62,6 +65,8 @@ fun StatsScreen(
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val log by viewModel.log.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val copyActionLabel = stringResource(R.string.action_copy)
 
     // Pending confirmation for destructive "Clear" actions.
     var confirm by remember { mutableStateOf<ConfirmAction?>(null) }
@@ -164,26 +169,44 @@ fun StatsScreen(
             }
 
             // Recent API calls.
-            SectionWithAction(stringResource(R.string.stats_sec_recent), stringResource(R.string.stats_clear), {
-                confirm = ConfirmAction(clearCallsTitle, clearCallsMsg, viewModel::clearMetrics)
-            }) {
-                if (snapshot.calls.isEmpty()) {
-                    Text(stringResource(R.string.stats_no_calls), style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    snapshot.calls.take(50).forEach { ApiCallRow(it) }
-                }
-            }
+            SectionWithAction(
+                title = stringResource(R.string.stats_sec_recent),
+                actionLabel = stringResource(R.string.stats_clear),
+                onAction = {
+                    confirm = ConfirmAction(clearCallsTitle, clearCallsMsg, viewModel::clearMetrics)
+                },
+                content = {
+                    if (snapshot.calls.isEmpty()) {
+                        Text(stringResource(R.string.stats_no_calls), style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        snapshot.calls.take(50).forEach { ApiCallRow(it) }
+                    }
+                },
+                secondaryLabel = copyActionLabel.takeIf { snapshot.calls.isNotEmpty() },
+                onSecondary = if (snapshot.calls.isNotEmpty()) {
+                    { context.copyToClipboard("AutoLock API calls", snapshot.calls.toClipboardText()) }
+                } else null,
+            )
 
             // Activity log.
-            SectionWithAction(stringResource(R.string.stats_sec_log), stringResource(R.string.stats_clear), {
-                confirm = ConfirmAction(clearLogTitle, clearLogMsg, viewModel::clearLog)
-            }) {
-                if (log.isEmpty()) {
-                    Text(stringResource(R.string.stats_no_activity), style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    log.take(50).forEach { LogRow(it) }
-                }
-            }
+            SectionWithAction(
+                title = stringResource(R.string.stats_sec_log),
+                actionLabel = stringResource(R.string.stats_clear),
+                onAction = {
+                    confirm = ConfirmAction(clearLogTitle, clearLogMsg, viewModel::clearLog)
+                },
+                content = {
+                    if (log.isEmpty()) {
+                        Text(stringResource(R.string.stats_no_activity), style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        log.take(50).forEach { LogRow(it) }
+                    }
+                },
+                secondaryLabel = copyActionLabel.takeIf { log.isNotEmpty() },
+                onSecondary = if (log.isNotEmpty()) {
+                    { context.copyToClipboard("AutoLock activity log", log.toClipboardText()) }
+                } else null,
+            )
         }
     }
 }
@@ -219,15 +242,23 @@ private fun SectionWithAction(
     actionLabel: String,
     onAction: () -> Unit,
     content: @Composable () -> Unit,
+    secondaryLabel: String? = null,
+    onSecondary: (() -> Unit)? = null,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                TextButton(onClick = onAction) { Text(actionLabel) }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (secondaryLabel != null && onSecondary != null) {
+                        TextButton(onClick = onSecondary) { Text(secondaryLabel) }
+                    }
+                    TextButton(onClick = onAction) { Text(actionLabel) }
+                }
             }
             content()
         }

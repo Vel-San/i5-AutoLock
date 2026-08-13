@@ -71,6 +71,9 @@
     <string name="action_sign_in">Aanmelden</string>
     <string name="action_lock_now">Nu vergrendelen</string>
     <string name="action_already_locked">Al vergrendeld</string>
+    <string name="action_unlock_now">Nu ontgrendelen</string>
+    <string name="action_already_unlocked">Al ontgrendeld</string>
+    <string name="msg_copied">Gekopieerd naar klembord</string>
     <string name="badge_demo">DEMO</string>
     <string name="badge_dry_run">TEST</string>
     <string name="badge_armed">SCHERP</string>
@@ -94,6 +97,9 @@
     <string name="home_lock_dialog_title">Auto nu vergrendelen?</string>
     <string name="home_lock_dialog_pin">Voer je BlueLink-pincode in om een echte vergrendelopdracht te sturen.</string>
     <string name="home_lock_dialog_plain">Hiermee wordt een vergrendelopdracht naar je auto gestuurd.</string>
+    <string name="home_unlock_dialog_title">Auto nu ontgrendelen?</string>
+    <string name="home_unlock_dialog_pin">Voer je BlueLink-pincode in om een echte ontgrendelopdracht te sturen.</string>
+    <string name="home_unlock_dialog_plain">Hiermee wordt een ontgrendelopdracht naar je auto gestuurd.</string>
     <string name="home_pin_label">Pincode</string>
     <string name="home_system_status">SYSTEEMSTATUS</string>
     <string name="home_watching">Let op</string>
