@@ -28,9 +28,6 @@ class MeteredBlueLinkClient(
     override suspend fun login(username: String, authCodeOrPassword: String): CommandResult =
         measuredCommand("login") { delegate.login(username, authCodeOrPassword) }
 
-    override suspend fun loginWithRefreshToken(refreshToken: String): CommandResult =
-        measuredCommand("loginWithRefreshToken") { delegate.loginWithRefreshToken(refreshToken) }
-
     override suspend fun loginWithPassword(username: String, password: String): CommandResult =
         measuredCommand("loginWithPassword") { delegate.loginWithPassword(username, password) }
 
@@ -49,6 +46,8 @@ class MeteredBlueLinkClient(
         measuredCommand("unlock") { delegate.unlock(vehicleId) }
 
     override suspend fun clearSession() = delegate.clearSession()
+
+    override suspend fun resetDeviceRegistration() = delegate.resetDeviceRegistration()
 
     override suspend fun diagnose(vehicleId: String): String = delegate.diagnose(vehicleId)
 

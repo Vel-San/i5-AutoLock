@@ -16,6 +16,7 @@ import com.i5autolock.data.secure.SessionTokens
 import com.i5autolock.data.settings.SettingsRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -49,8 +50,8 @@ import java.util.UUID
  * `hyundai_kia_connect_api` and `bluelinky`. Exact endpoints, headers and the
  * control-token dance evolve over time — keep all EU specifics in this package.
  *
- * The login() code path expects the OAuth authorization `code` captured by the UI
- * (Custom Tab / browser redirect), NOT a raw password.
+ * Sign-in is email + password via the OneApp/CCI flow ([EuIdpAuth]); the resulting CCS token
+ * is used as a Bearer against the ccapi:8080 vehicle/control endpoints.
  */
 class EuBlueLinkClient(
     private val http: HttpClient,
@@ -58,8 +59,6 @@ class EuBlueLinkClient(
     private val secureStore: SecureStore,
     private val settingsRepo: SettingsRepository,
     private val metrics: ApiMetrics,
-    // App context for the Chromium WebView login (null → raw OkHttp path only).
-    private val appContext: android.content.Context? = null,
     // Optional step-by-step diagnostics surfaced in the app's activity log.
     private val diag: (String) -> Unit = {},
 ) : BlueLinkClient {
@@ -152,12 +151,18 @@ class EuBlueLinkClient(
     /** Async command execution result reported by the vehicle (via notifications/records). */
     private enum class ActionState { SUCCESS, FAILED, PENDING }
 
-    private data class ActionCheck(val state: ActionState, val resultCode: String?)
+    private data class ActionCheck(
+        val state: ActionState,
+        val resultCode: String?,
+        val record: String? = null,
+    )
 
     /**
      * Polls `notifications/{vehicleId}/records` for the given msgId. EU CCS2 control commands are
      * async — `retCode:"S"` only means the backend queued the request; the car's actual execution
-     * result appears here (result="success"/"fail"). Polls every 3s up to [timeoutMs].
+     * result appears here (result="success"/"fail"). Polls every 3s up to [timeoutMs] with a short
+     * per-request timeout so a stuck endpoint can't eat the whole poll window. Tries v2 first, then
+     * v1 (references disagree; we pick whichever answers 200).
      */
     private suspend fun pollCommandStatus(
         vehicleId: String,
@@ -166,32 +171,60 @@ class EuBlueLinkClient(
         pollEveryMs: Long = 3_000L,
     ): ActionCheck {
         val deadline = System.currentTimeMillis() + timeoutMs
-        val url = "${config.apiBaseUrl}/api/v2/spa/notifications/$vehicleId/records"
+        val candidates = mutableListOf(
+            "${config.apiBaseUrl}/api/v2/spa/notifications/$vehicleId/records",
+            "${config.apiBaseUrl}/api/v1/spa/notifications/$vehicleId/records",
+        )
         var attempt = 0
+        var firstProbeLogged = false
         while (System.currentTimeMillis() < deadline) {
             attempt++
-            val response = runCatching {
-                http.get(url) {
-                    baseHeaders(this)
-                    header("Authorization", authHeader())
+            for ((idx, url) in candidates.withIndex()) {
+                val label = if (idx == 0) "v2" else "v1"
+                val start = System.currentTimeMillis()
+                val result = runCatching {
+                    http.get(url) {
+                        baseHeaders(this)
+                        header("Authorization", authHeader())
+                        timeout { requestTimeoutMillis = 8_000 }
+                    }
                 }
-            }.getOrNull()
-            if (response != null && response.ok()) {
+                val response = result.getOrNull()
+                if (response == null) {
+                    val err = result.exceptionOrNull()?.message ?: "unknown"
+                    if (!firstProbeLogged) {
+                        diag("action poll ($label) #$attempt → ✗ request failed in ${System.currentTimeMillis() - start}ms: $err")
+                        firstProbeLogged = true
+                    }
+                    continue
+                }
                 val raw = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
+                if (!firstProbeLogged) {
+                    val snippet = raw.take(200).replace(Regex("\\s+"), " ").trim()
+                    diag("action poll ($label) #$attempt → HTTP ${response.status.value} in ${System.currentTimeMillis() - start}ms | body: $snippet")
+                    firstProbeLogged = true
+                }
+                if (!response.ok()) continue
+                // Successful response on this path — drop the other candidate to save requests.
+                if (candidates.size > 1) candidates.removeAt(if (idx == 0) 1 else 0)
                 val obj = runCatching { Json.parseToJsonElement(raw).jsonObject }.getOrNull()
                 val records = (obj?.get("resMsg") as? JsonArray) ?: JsonArray(emptyList())
                 for (rec in records) {
                     val recObj = rec as? JsonObject ?: continue
                     val id = recObj["recordId"]?.jsonPrimitive?.contentOrNull
                     if (id != msgId) continue
-                    val result = recObj["result"]?.jsonPrimitive?.contentOrNull?.lowercase()
+                    val resultStr = recObj["result"]?.jsonPrimitive?.contentOrNull?.lowercase()
                     val resultCode = recObj["resultCode"]?.jsonPrimitive?.contentOrNull
-                    when (result) {
-                        "success" -> return ActionCheck(ActionState.SUCCESS, resultCode)
-                        "fail", "failure" -> return ActionCheck(ActionState.FAILED, resultCode)
-                        else -> break // matches record but still pending → wait
+                    val recordMsg = recObj["record"]?.jsonPrimitive?.contentOrNull
+                    // Log the full matching record so the actual failure reason is visible.
+                    diag("action poll ($label): matched record → ${recObj.toString().take(500)}")
+                    when (resultStr) {
+                        "success" -> return ActionCheck(ActionState.SUCCESS, resultCode, recordMsg)
+                        "fail", "failure" -> return ActionCheck(ActionState.FAILED, resultCode ?: resultStr, recordMsg)
+                        else -> break
                     }
                 }
+                break
             }
             delay(pollEveryMs)
         }
@@ -216,7 +249,18 @@ class EuBlueLinkClient(
             ActionState.FAILED -> {
                 val code = check.resultCode ?: "unknown"
                 diag("action poll: ✗ car reported failure for $action (resultCode=$code)")
-                CommandResult.Failure("Car reported $action failed (resultCode $code) — likely offline, asleep or state-blocked.")
+                // Prefer Hyundai's own human-readable "record" message (e.g. "[Fail] Cannot unlock
+                // door. Please check your vehicle status.") — it's the same wording the myHyundai
+                // app shows and gives the user a real starting point.
+                val cleaned = check.record
+                    ?.replace(Regex("^\\[[^]]+]\\s*"), "") // strip leading "[Fail] "
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                if (cleaned != null) {
+                    CommandResult.Failure("Hyundai says: $cleaned Usually means remote services are disabled in the car, the car is offline/asleep, ignition is on, or the door is already in the requested state.")
+                } else {
+                    CommandResult.Failure("Car reported $action failed (resultCode $code). The car refused without a specific error — usually remote services disabled in the head-unit, car offline/asleep, ignition on, or door already in the requested state.")
+                }
             }
             ActionState.PENDING -> {
                 CommandResult.Failure("Command queued but the car didn't confirm within 30 s. It may be offline / in a poor signal area / asleep. Try again in a minute.")
@@ -238,46 +282,19 @@ class EuBlueLinkClient(
         builder.header("ccuCCS2ProtocolSupport", "1")
     }
 
-    /** Plain headers for the IDP (idpconnect) host — no CCSP stamp, mobile UA. */
-    private fun idpHeaders(builder: io.ktor.client.request.HttpRequestBuilder) {
-        builder.header("User-Agent", config.mobileUserAgent)
-    }
-
     override suspend fun isAuthenticated(): Boolean = secureStore.loadTokens() != null
 
     /**
-     * Fully headless EU sign-in with email + password (no reCAPTCHA), ported from
-     * `bluelink-refresh-token`: load the authorize page for cookies, fetch the IDP RSA key,
-     * RSA-encrypt the password, POST /auth/account/signin (302 → code), exchange the code for
-     * tokens. This generates the refresh token automatically so users never handle it.
+     * Fully headless EU sign-in with email + password via the OneApp/CCI flow (see [EuIdpAuth]).
+     * Register the CCSP device, run the CCI login, then persist the CCS token + CCI token set.
      */
     override suspend fun loginWithPassword(username: String, password: String): CommandResult {
-        if (config.idpBaseUrl == null) return CommandResult.Failure("Password login isn't supported here.")
+        if (config.oneAppClientId == null) return CommandResult.Failure("Password login isn't supported here.")
         return try {
             diag("Login: registering device…")
-            ensureDeviceRegistered()
-            // EU IDP sits behind Akamai bot protection that blocks OkHttp's TLS fingerprint,
-            // so drive the login through a real Chromium WebView. Fall back to the raw OkHttp
-            // flow only if the WebView itself is unavailable.
-            val tokens = if (appContext != null) {
-                try {
-                    EuWebLogin(appContext).login(config, username.trim(), password, diag)
-                } catch (e: EuWebLogin.WebUnavailable) {
-                    diag("Web login unavailable (${e.message}); trying direct…")
-                    EuIdpAuth().login(config, username.trim(), password, diag)
-                }
-            } else {
-                EuIdpAuth().login(config, username.trim(), password, diag)
-            }
-            secureStore.saveTokens(
-                SessionTokens(
-                    accessToken = tokens.accessToken,
-                    refreshToken = tokens.refreshToken,
-                    tokenType = "Bearer",
-                    expiresAtEpochMs = System.currentTimeMillis() + tokens.expiresIn * 1000,
-                    deviceId = currentDeviceId(),
-                ),
-            )
+            val deviceId = ensureDeviceRegistered()
+            val tokens = EuIdpAuth().login(config, username.trim(), password, deviceId, diag)
+            persist(tokens)
             diag("Login complete ✓")
             CommandResult.Success("Signed in")
         } catch (t: EuIdpAuth.LoginException) {
@@ -293,83 +310,46 @@ class EuBlueLinkClient(
         return CommandResult.Failure(message)
     }
 
-    override suspend fun login(username: String, authCodeOrPassword: String): CommandResult {
-        return try {
-            diag("Login: exchanging code for tokens…")
-            ensureDeviceRegistered()
-            // CCSP browser-flow token exchange (matches bluelinky): basic auth + Stamp, code +
-            // redirect_uri only. Body must NOT include client_id or the server returns 400.
-            val response: HttpResponse = http.post("${config.apiBaseUrl}/api/v1/user/oauth2/token") {
-                config.basicAuth?.let { header("Authorization", it) }
-                header("Stamp", EuAuth.generateStamp(config))
-                header("User-Agent", "okhttp/3.12.0")
-                contentType(ContentType.Application.FormUrlEncoded)
-                setBody(
-                    FormDataContent(
-                        parameters {
-                            append("grant_type", "authorization_code")
-                            append("redirect_uri", config.redirectUri)
-                            append("code", authCodeOrPassword)
-                        },
-                    ),
-                )
-            }
-            if (!response.ok()) {
-                val body = runCatching { response.body<String>() }.getOrDefault("").take(200)
-                return fail("Token exchange failed (HTTP ${response.status.value}). $body")
-            }
-            val token: TokenResponse = response.body()
-            persist(token, username)
-            diag("Login complete ✓")
-            CommandResult.Success("Signed in")
-        } catch (t: Throwable) {
-            Log.w(TAG, "login failed: ${t.message}")
-            fail("Login error: ${t.message}")
-        }
-    }
-
     /**
-     * Reliable EU sign-in: exchange a pre-obtained 48-char refresh token for an access token
-     * using HTTP Basic auth + the CCSP stamp headers. This mirrors BlueDeck / bluelinky, since
-     * the EU login page itself uses reCAPTCHA and can't be automated on-device.
+     * The interface's OAuth code-exchange entry point. EU sign-in is now email + password
+     * (OneApp/CCI); the legacy browser/code flow is gone, so direct callers here.
      */
-    override suspend fun loginWithRefreshToken(refreshToken: String): CommandResult {
-        val cleaned = refreshToken.trim()
-        if (cleaned.isEmpty()) return CommandResult.Failure("Enter your EU refresh token.")
-        return try {
-            // The device must be registered before the token exchange (matches BlueDeck).
-            ensureDeviceRegistered()
-            val response = idpTokenRefresh(cleaned)
-            if (!response.ok()) {
-                return CommandResult.Failure("Token refresh failed (${response.status.value}). Check the token.")
-            }
-            val token: TokenResponse = response.body()
-            // Keep the user-provided refresh token if the server didn't return a new one.
-            persist(token.copy(refreshToken = token.refreshToken ?: cleaned), null)
-            CommandResult.Success("Signed in with refresh token")
-        } catch (t: Throwable) {
-            Log.w(TAG, "refresh-token login failed: ${t.message}")
-            CommandResult.Failure("Login error", t)
-        }
+    override suspend fun login(username: String, authCodeOrPassword: String): CommandResult =
+        CommandResult.Failure("Sign in with your email and password.")
+
+    private fun persist(tokens: EuIdpAuth.Tokens) {
+        val prev = secureStore.loadTokens()
+        secureStore.saveTokens(
+            SessionTokens(
+                accessToken = tokens.ccsAccessToken,
+                refreshToken = tokens.cci.refreshToken,
+                tokenType = "Bearer",
+                expiresAtEpochMs = tokens.ccsExpiresAtEpochMs,
+                deviceId = currentDeviceId(),
+                controlToken = prev?.controlToken,
+                controlTokenExpiresAtEpochMs = prev?.controlTokenExpiresAtEpochMs ?: 0L,
+                cciAccessToken = tokens.cci.accessToken,
+                exchangeableToken = tokens.cci.exchangeableToken,
+                exchangeableRefreshToken = tokens.cci.exchangeableRefreshToken,
+                nonCcsToken = tokens.cci.nonCcsToken,
+                nonCcsRefreshToken = tokens.cci.nonCcsRefreshToken,
+                idToken = tokens.cci.idToken,
+            ),
+        )
     }
 
-    /** Refresh an EU access token at the IDP token endpoint (client_id + client_secret in body). */
-    private suspend fun idpTokenRefresh(refreshToken: String): HttpResponse {
-        val idp = config.idpBaseUrl ?: config.apiBaseUrl
-        return http.post("$idp/auth/api/v2/user/oauth2/token") {
-            idpHeaders(this)
-            contentType(ContentType.Application.FormUrlEncoded)
-            setBody(
-                FormDataContent(
-                    parameters {
-                        append("grant_type", "refresh_token")
-                        append("refresh_token", refreshToken)
-                        append("client_id", config.clientId)
-                        config.clientSecret?.let { append("client_secret", it) }
-                    },
-                ),
-            )
-        }
+    /** Reconstruct the CCI token set from stored session tokens (for refresh). */
+    private fun SessionTokens.toCciTokens(): EuIdpAuth.CciTokens? {
+        val cciAccess = cciAccessToken ?: return null
+        return EuIdpAuth.CciTokens(
+            accessToken = cciAccess,
+            refreshToken = refreshToken,
+            nonCcsToken = nonCcsToken.orEmpty(),
+            nonCcsRefreshToken = nonCcsRefreshToken.orEmpty(),
+            exchangeableToken = exchangeableToken.orEmpty(),
+            exchangeableRefreshToken = exchangeableRefreshToken.orEmpty(),
+            idToken = idToken.orEmpty(),
+        )
     }
 
     /**
@@ -399,28 +379,13 @@ class EuBlueLinkClient(
         return buildString(length) { repeat(length) { append(alphabet.random()) } }
     }
 
-    private fun persist(token: TokenResponse, email: String?) {
-        val prev = secureStore.loadTokens()
-        secureStore.saveTokens(
-            SessionTokens(
-                accessToken = token.accessToken,
-                refreshToken = token.refreshToken ?: prev?.refreshToken.orEmpty(),
-                tokenType = token.tokenType,
-                expiresAtEpochMs = System.currentTimeMillis() + token.expiresIn * 1000,
-                deviceId = currentDeviceId(),
-            ),
-        )
-    }
-
     override suspend fun ensureFreshSession(): Boolean = refreshMutex.withLock {
         val tokens = secureStore.loadTokens() ?: return false
         if (!tokens.isAccessExpired) return true
-        if (tokens.refreshToken.isBlank()) return false
+        val cci = tokens.toCciTokens() ?: return false
         return try {
-            val response = idpTokenRefresh(tokens.refreshToken)
-            if (!response.ok()) return false
-            val token: TokenResponse = response.body()
-            persist(token.copy(refreshToken = token.refreshToken ?: tokens.refreshToken), null)
+            val refreshed = EuIdpAuth().refresh(config, currentDeviceId(), cci, diag)
+            persist(refreshed)
             true
         } catch (t: Throwable) {
             Log.w(TAG, "refresh failed: ${t.message}")
@@ -844,6 +809,12 @@ class EuBlueLinkClient(
     }
 
     override suspend fun clearSession() = secureStore.clear()
+
+    override suspend fun resetDeviceRegistration() {
+        val old = secureStore.loadDeviceId()
+        secureStore.clearDeviceId()
+        diag("device registration reset (old=${old?.take(8) ?: "none"}…) — will re-register on next call")
+    }
 
     /**
      * Runs 3 read-only probes in order and returns a multi-line report. Each line has the endpoint,

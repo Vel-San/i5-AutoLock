@@ -11,10 +11,15 @@
         </trust-anchors>
     </base-config>
 
-    <!-- Hyundai/Kia EU CCS endpoints. Keep in sync with RegionConfig. -->
+    <!-- Hyundai/Kia EU CCS + login endpoints. Keep in sync with RegionConfig. -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">eu-ccapi.hyundai.com</domain>
         <domain includeSubdomains="true">eu-ccapi.kia.com</domain>
+        <!-- OneApp/CCI login (WAF bypass): IDP + CCI token exchange hosts. -->
+        <domain includeSubdomains="true">idpconnect-eu.hyundai.com</domain>
+        <domain includeSubdomains="true">idpconnect-eu.kia.com</domain>
+        <domain includeSubdomains="true">cci-api-eu.hyundai.com</domain>
+        <domain includeSubdomains="true">cci-api-eu.kia.com</domain>
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

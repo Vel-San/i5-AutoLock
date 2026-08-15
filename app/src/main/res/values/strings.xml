@@ -171,6 +171,9 @@
     <string name="check_creds_refresh_failed">Session refresh failed — sign in again.</string>
     <string name="check_creds_failed">Credentials check failed: %1$s</string>
     <string name="set_diagnose_api">Diagnose API</string>
+    <string name="set_reset_device">Reset device registration</string>
+    <string name="set_reset_device_hint">If commands fail with “Please check your vehicle status”, tap this to clear the stored CCSP device id and re-register on the next call. Doesn’t sign you out.</string>
+    <string name="reset_device_done">Device registration cleared — will re-register on the next lock/unlock.</string>
     <string name="diagnose_no_vehicle">Pick a vehicle first, then run the diagnosis.</string>
     <string name="diagnose_title">API diagnosis</string>
     <string name="action_close">Close</string>

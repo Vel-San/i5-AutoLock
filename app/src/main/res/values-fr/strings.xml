@@ -171,6 +171,9 @@
     <string name="check_creds_refresh_failed">Échec du renouvellement de la session — reconnectez-vous.</string>
     <string name="check_creds_failed">Échec de la vérification des identifiants : %1$s</string>
     <string name="set_diagnose_api">Diagnostiquer l\'API</string>
+    <string name="set_reset_device">Réinitialiser l\'enregistrement de l\'appareil</string>
+    <string name="set_reset_device_hint">Si les commandes échouent avec « Vérifiez l\'état du véhicule », appuyez ici pour effacer l\'ID d\'appareil CCSP stocké et le ré-enregistrer au prochain appel. Ne vous déconnecte pas.</string>
+    <string name="reset_device_done">Enregistrement de l\'appareil effacé — il sera renouvelé au prochain verrouillage/déverrouillage.</string>
     <string name="diagnose_no_vehicle">Choisissez d\'abord un véhicule, puis lancez le diagnostic.</string>
     <string name="diagnose_title">Diagnostic de l\'API</string>
     <string name="action_close">Fermer</string>

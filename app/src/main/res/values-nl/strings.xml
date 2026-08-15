@@ -171,6 +171,9 @@
     <string name="check_creds_refresh_failed">Sessie vernieuwen mislukt — meld je opnieuw aan.</string>
     <string name="check_creds_failed">Controle van inloggegevens mislukt: %1$s</string>
     <string name="set_diagnose_api">API diagnosticeren</string>
+    <string name="set_reset_device">Apparaatregistratie resetten</string>
+    <string name="set_reset_device_hint">Als opdrachten mislukken met “Controleer de voertuigstatus”, tik hier om de opgeslagen CCSP-apparaat-id te wissen en bij de volgende oproep opnieuw te registreren. Meldt je niet af.</string>
+    <string name="reset_device_done">Apparaatregistratie gewist — wordt opnieuw geregistreerd bij de volgende vergrendeling/ontgrendeling.</string>
     <string name="diagnose_no_vehicle">Kies eerst een voertuig en voer daarna de diagnose uit.</string>
     <string name="diagnose_title">API-diagnose</string>
     <string name="action_close">Sluiten</string>

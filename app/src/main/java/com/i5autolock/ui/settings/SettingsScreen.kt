@@ -198,6 +198,15 @@ fun SettingsScreen(
                         onClick = viewModel::diagnoseApi,
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.set_diagnose_api)) }
+                    OutlinedButton(
+                        onClick = viewModel::resetDeviceRegistration,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.set_reset_device)) }
+                    Text(
+                        stringResource(R.string.set_reset_device_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Text(stringResource(R.string.set_region), fontWeight = FontWeight.Medium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

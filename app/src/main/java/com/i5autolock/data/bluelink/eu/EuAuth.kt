@@ -25,23 +25,6 @@ object EuAuth {
         return Base64.encodeToString(out, Base64.NO_WRAP)
     }
 
-    /**
-     * CCSP browser-flow authorize URL for the visible WebView. Matches bluelinky exactly —
-     * CCSP renders the actual IDP login form and, after signin, 302s to [RegionConfig.redirectUri]
-     * with `?code=…`. Loading the IDP mobile URL directly in a browser returns 400 (that URL is a
-     * machine-only endpoint for headless clients), which is why we go through CCSP here.
-     */
-    fun buildAuthorizeUrl(config: RegionConfig): String {
-        val base = "${config.apiBaseUrl}/api/v1/user/oauth2/authorize"
-        val params = listOf(
-            "response_type" to "code",
-            "state" to "test",
-            "client_id" to config.clientId,
-            "redirect_uri" to config.redirectUri,
-        ).joinToString("&") { (k, v) -> "$k=${urlEncode(v)}" }
-        return "$base?$params"
-    }
-
     /** Extract the authorization code from an intercepted redirect URL, if present. */
     fun extractAuthCode(redirectedUrl: String): String? {
         val q = redirectedUrl.substringAfter('?', "")
@@ -78,9 +61,6 @@ object EuAuth {
             ?.get(1)
             ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
     }
-
-    private fun urlEncode(value: String): String =
-        java.net.URLEncoder.encode(value, "UTF-8")
 
     /**
      * RSA-encrypts the password (PKCS#1 v1.5) with the IDP's JWK public key and returns hex,

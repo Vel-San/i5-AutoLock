@@ -1,16 +1,10 @@
 package com.i5autolock.ui.login
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.view.WindowManager
-import android.webkit.CookieManager
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -41,9 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -54,28 +45,21 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.i5autolock.R
 import com.i5autolock.domain.LogLevel
 import com.i5autolock.ui.theme.PixelBand
-import kotlinx.coroutines.launch
 
 /**
- * Sign-in — one form, one job.
+ * Sign-in — one form, one job: email + password (+ optional 4-digit lock PIN).
  *
- * The password field accepts either your BlueLink password *or* a pre-generated 48-char
- * refresh token; the ViewModel auto-detects which and routes accordingly. If the primary
- * headless flow fails, a secondary "sign in via in-app browser" option opens Hyundai's
- * real login page inside a locked-down WebView with a Cancel button and live log strip.
+ * The session is generated fully on-device via the OneApp/CCI flow (see `EuIdpAuth`); there is no
+ * browser, reCAPTCHA, or refresh token to paste. A live log strip surfaces each step.
  *
  * Security: FLAG_SECURE blocks screenshots/recents thumbnails while credentials are visible.
- * The WebView is locked down (no file/content access, no password/form persistence, and
- * cookies are cleared when the screen closes).
  */
 @OptIn(ExperimentalMaterial3Api::class)
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun LoginScreen(
     onBack: () -> Unit,
@@ -84,15 +68,12 @@ fun LoginScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val log by viewModel.log.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf("") }
-    var authorizeUrl by remember { mutableStateOf<String?>(null) }
-    var redirectPrefix by remember { mutableStateOf("") }
 
     DisposableEffect(Unit) {
         val activity = context as? Activity
@@ -102,8 +83,6 @@ fun LoginScreen(
         )
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            CookieManager.getInstance().removeAllCookies(null)
-            CookieManager.getInstance().flush()
         }
     }
 
@@ -114,7 +93,7 @@ fun LoginScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (authorizeUrl != null) stringResource(R.string.login_title_hyundai) else stringResource(R.string.login_title_bluelink)) },
+                title = { Text(stringResource(R.string.login_title_bluelink)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
@@ -168,46 +147,21 @@ fun LoginScreen(
                 }
             }
 
-            if (authorizeUrl == null) {
-                SignInForm(
-                    email = email,
-                    onEmailChange = { email = it },
-                    password = password,
-                    onPasswordChange = { password = it },
-                    pin = pin,
-                    onPinChange = { pin = it.filter { c -> c.isDigit() }.take(6) },
-                    state = state,
-                    onSignIn = {
-                        viewModel.clearLog()
-                        viewModel.logInfo("Sign in requested for ${email.trim()}")
-                        viewModel.onSignIn(email, password, pin)
-                    },
-                    onOpenBrowser = {
-                        scope.launch {
-                            viewModel.clearLog()
-                            viewModel.prepareWebLogin(email, pin)
-                            redirectPrefix = viewModel.redirectPrefix()
-                            authorizeUrl = viewModel.authorizeUrl()
-                            viewModel.logInfo("Opening Hyundai's login page…")
-                        }
-                    },
-                    onDemo = { viewModel.demoLogin() },
-                )
-            } else {
-                WebViewSignIn(
-                    authorizeUrl = authorizeUrl!!,
-                    redirectPrefix = redirectPrefix,
-                    onCancel = {
-                        viewModel.logInfo("Sign-in cancelled.")
-                        authorizeUrl = null
-                        CookieManager.getInstance().removeAllCookies(null)
-                        CookieManager.getInstance().flush()
-                    },
-                    onRedirect = viewModel::onRedirectCaptured,
-                    onLog = viewModel::logInfo,
-                    onError = viewModel::logError,
-                )
-            }
+            SignInForm(
+                email = email,
+                onEmailChange = { email = it },
+                password = password,
+                onPasswordChange = { password = it },
+                pin = pin,
+                onPinChange = { pin = it.filter { c -> c.isDigit() }.take(6) },
+                state = state,
+                onSignIn = {
+                    viewModel.clearLog()
+                    viewModel.logInfo("Sign in requested for ${email.trim()}")
+                    viewModel.onSignIn(email, password, pin)
+                },
+                onDemo = { viewModel.demoLogin() },
+            )
         }
     }
 }
@@ -222,7 +176,6 @@ private fun SignInForm(
     onPinChange: (String) -> Unit,
     state: LoginState,
     onSignIn: () -> Unit,
-    onOpenBrowser: () -> Unit,
     onDemo: () -> Unit,
 ) {
     Column(
@@ -281,144 +234,9 @@ private fun SignInForm(
 
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
-        Text(
-            stringResource(R.string.login_browser_hint),
-            style = MaterialTheme.typography.bodySmall,
-        )
-        OutlinedButton(
-            onClick = onOpenBrowser,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = email.isNotBlank() && state !is LoginState.InProgress,
-        ) { Text(stringResource(R.string.login_browser_button)) }
-
         TextButton(
             onClick = onDemo,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(stringResource(R.string.login_demo)) }
     }
-}
-
-@SuppressLint("SetJavaScriptEnabled")
-@Composable
-private fun WebViewSignIn(
-    authorizeUrl: String,
-    redirectPrefix: String,
-    onCancel: () -> Unit,
-    onRedirect: (String) -> Unit,
-    onLog: (String) -> Unit,
-    onError: (String) -> Unit,
-) {
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
-            Text(
-                stringResource(R.string.login_webview_progress),
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        AndroidView(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    CookieManager.getInstance().removeAllCookies(null)
-                    CookieManager.getInstance().flush()
-                    CookieManager.getInstance().setAcceptCookie(true)
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    with(settings) {
-                        javaScriptEnabled = true
-                        domStorageEnabled = true
-                        databaseEnabled = true
-                        userAgentString =
-                            "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 " +
-                                "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-                        allowFileAccess = false
-                        allowContentAccess = false
-                        @Suppress("DEPRECATION")
-                        savePassword = false
-                        saveFormData = false
-                        setGeolocationEnabled(false)
-                    }
-                    isVerticalScrollBarEnabled = true
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView?,
-                            request: WebResourceRequest?,
-                        ): Boolean {
-                            val url = request?.url?.toString() ?: return false
-                            return if (url.startsWith(redirectPrefix)) {
-                                view?.stopLoading()
-                                onLog("Captured redirect ✓")
-                                onRedirect(url)
-                                true
-                            } else {
-                                onLog("→ ${sanitizeForLog(url)}")
-                                false
-                            }
-                        }
-
-                        override fun onPageStarted(
-                            view: WebView?,
-                            url: String?,
-                            favicon: android.graphics.Bitmap?,
-                        ) {
-                            if (url == null) return
-                            if (url.startsWith(redirectPrefix)) {
-                                view?.stopLoading()
-                                onLog("Captured redirect ✓")
-                                onRedirect(url)
-                            }
-                        }
-
-                        override fun onReceivedError(
-                            view: WebView?,
-                            request: WebResourceRequest?,
-                            error: android.webkit.WebResourceError?,
-                        ) {
-                            if (request?.isForMainFrame != true) return
-                            onError(
-                                "WebView error ${error?.errorCode}: ${error?.description} @ " +
-                                    sanitizeForLog(request.url?.toString().orEmpty()),
-                            )
-                        }
-
-                        override fun onReceivedHttpError(
-                            view: WebView?,
-                            request: WebResourceRequest?,
-                            errorResponse: android.webkit.WebResourceResponse?,
-                        ) {
-                            if (request?.isForMainFrame != true) return
-                            onError(
-                                "HTTP ${errorResponse?.statusCode} ${errorResponse?.reasonPhrase} @ " +
-                                    sanitizeForLog(request.url?.toString().orEmpty()),
-                            )
-                        }
-                    }
-                    loadUrl(authorizeUrl)
-                }
-            },
-        )
-    }
-}
-
-private fun sanitizeForLog(url: String): String {
-    if (url.isEmpty()) return "(empty)"
-    val cut = url.substringBefore('?')
-    val q = url.substringAfter('?', "")
-    val safeQuery = if (q.isEmpty()) "" else {
-        val keys = q.split('&')
-            .mapNotNull { it.substringBefore('=', "").takeIf(String::isNotBlank) }
-        "?" + keys.joinToString(",")
-    }
-    val trimmed = "$cut$safeQuery"
-    return if (trimmed.length > 90) trimmed.take(90) + "…" else trimmed
 }

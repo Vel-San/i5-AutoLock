@@ -29,15 +29,8 @@ interface BlueLinkClient {
     suspend fun login(username: String, authCodeOrPassword: String): CommandResult
 
     /**
-     * EU-style sign-in with a pre-obtained 48-char refresh token (the reliable path, since
-     * Hyundai's EU login uses reCAPTCHA). Default: unsupported for non-EU regions.
-     */
-    suspend fun loginWithRefreshToken(refreshToken: String): CommandResult =
-        CommandResult.Failure("Refresh-token sign-in isn't supported for this region.")
-
-    /**
-     * Fully automatic EU sign-in with email + password: generates the refresh token on-device
-     * (headless, no reCAPTCHA). Default: unsupported for non-EU regions.
+     * Fully automatic EU sign-in with email + password: generates the session on-device via the
+     * OneApp/CCI flow (no reCAPTCHA, no WAF block). Default: unsupported for non-EU regions.
      */
     suspend fun loginWithPassword(username: String, password: String): CommandResult =
         CommandResult.Failure("Email/password sign-in isn't supported for this region.")
@@ -59,6 +52,13 @@ interface BlueLinkClient {
 
     /** Drop the local session (logout). */
     suspend fun clearSession()
+
+    /**
+     * Force the client to re-register its CCSP device id on the next call. Useful when Hyundai's
+     * backend rejects commands with "Please check your vehicle status" — a stale/revoked device id
+     * on the account can silently cause every remote command to fail. Default: no-op.
+     */
+    suspend fun resetDeviceRegistration() {}
 
     /**
      * Probes the three key EU endpoints in order and returns a multi-line human-readable report.

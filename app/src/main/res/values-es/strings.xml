@@ -171,6 +171,9 @@
     <string name="check_creds_refresh_failed">Error al renovar la sesión — inicia sesión de nuevo.</string>
     <string name="check_creds_failed">Falló la comprobación de credenciales: %1$s</string>
     <string name="set_diagnose_api">Diagnosticar API</string>
+    <string name="set_reset_device">Restablecer registro de dispositivo</string>
+    <string name="set_reset_device_hint">Si los comandos fallan con “Revisa el estado del vehículo”, toca aquí para borrar el ID de dispositivo CCSP almacenado y volver a registrarlo en la próxima llamada. No cierra tu sesión.</string>
+    <string name="reset_device_done">Registro de dispositivo borrado — se registrará de nuevo en el próximo bloqueo/desbloqueo.</string>
     <string name="diagnose_no_vehicle">Selecciona un vehículo primero y luego ejecuta el diagnóstico.</string>
     <string name="diagnose_title">Diagnóstico de API</string>
     <string name="action_close">Cerrar</string>

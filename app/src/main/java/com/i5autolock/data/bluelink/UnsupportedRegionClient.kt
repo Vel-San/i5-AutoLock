@@ -16,7 +16,6 @@ class UnsupportedRegionClient(override val region: Region) : BlueLinkClient {
     override suspend fun isAuthenticated(): Boolean = false
     override suspend fun ensureFreshSession(): Boolean = false
     override suspend fun login(username: String, authCodeOrPassword: String) = CommandResult.Failure(message)
-    override suspend fun loginWithRefreshToken(refreshToken: String) = CommandResult.Failure(message)
     override suspend fun loginWithPassword(username: String, password: String) = CommandResult.Failure(message)
     override suspend fun vehicles(): List<Vehicle> = emptyList()
     override suspend fun status(vehicleId: String, forceRefresh: Boolean): VehicleStatus =

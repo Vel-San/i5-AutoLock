@@ -171,6 +171,9 @@
     <string name="check_creds_refresh_failed">Sitzungserneuerung fehlgeschlagen — bitte erneut anmelden.</string>
     <string name="check_creds_failed">Prüfung der Zugangsdaten fehlgeschlagen: %1$s</string>
     <string name="set_diagnose_api">API diagnostizieren</string>
+    <string name="set_reset_device">Geräteregistrierung zurücksetzen</string>
+    <string name="set_reset_device_hint">Wenn Befehle mit „Bitte Fahrzeugstatus prüfen“ fehlschlagen, hier tippen, um die gespeicherte CCSP-Geräte-ID zu löschen und sich beim nächsten Aufruf neu zu registrieren. Meldet dich nicht ab.</string>
+    <string name="reset_device_done">Geräteregistrierung gelöscht — wird beim nächsten Sperren/Entsperren neu registriert.</string>
     <string name="diagnose_no_vehicle">Wähle zuerst ein Fahrzeug und starte dann die Diagnose.</string>
     <string name="diagnose_title">API-Diagnose</string>
     <string name="action_close">Schließen</string>

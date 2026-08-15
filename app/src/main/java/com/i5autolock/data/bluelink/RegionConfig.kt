@@ -29,13 +29,30 @@ data class RegionConfig(
     val idpRedirectUri: String? = null,
     /** Mobile UA the official app sends to the IDP. */
     val mobileUserAgent: String = MOBILE_UA,
+    // ── OneApp / CCI login (EU Hyundai/Kia) ──────────────────────────────────────────────
+    // Since 2026-08-11 Hyundai's WAF blocks the legacy login client_id ([clientId] with the
+    // :8080 redirect) — "classified as an abusing request and blocked". The OneApp client_id
+    // is NOT on that block list, so login now runs through it: authorize with [oneAppClientId]
+    // → sign in → exchange the code for CCI tokens → exchange those for a CCS token that the
+    // existing ccapi:8080 vehicle/control endpoints still accept. See hyundai_kia_connect_api#1277.
+    val oneAppClientId: String? = null,
+    val oneAppRedirectUri: String? = null,
+    /** CCI API host (e.g. https://cci-api-eu.hyundai.com), used for the token exchanges. */
+    val cciApiBaseUrl: String? = null,
+    /** App-identity headers the CCI API expects. */
+    val cciPackageId: String? = null,
+    val cciClientName: String? = null,
+    val cciClientVersion: String = "1.3.3",
+    val cciClientOsVersion: String = "18.7",
+    val cciNotificationProvider: String = "APNS",
 ) {
     companion object {
         const val MOBILE_UA =
             "Mozilla/5.0 (Linux; Android 4.1.1; Galaxy Nexus Build/JRO03C) AppleWebKit/535.19 " +
                 "(KHTML, like Gecko) Chrome/18.0.1025.166 Mobile Safari/535.19_CCS_APP_AOS"
 
-        // EU/Hyundai config. Values verified against BlueDeck + bluelink-refresh-token.
+        // EU/Hyundai config. Values verified against BlueDeck + bluelink-refresh-token +
+        // hyundai_kia_connect_api (#1277).
         fun euHyundai(): RegionConfig = RegionConfig(
             region = Region.EU,
             brand = Brand.HYUNDAI,
@@ -49,35 +66,15 @@ data class RegionConfig(
             redirectUri = "https://prd.eu-ccapi.hyundai.com:8080/api/v1/user/oauth2/redirect",
             idpBaseUrl = "https://idpconnect-eu.hyundai.com",
             idpRedirectUri = "https://prd.eu-ccapi.hyundai.com:8080/api/v1/user/oauth2/token",
+            // OneApp/CCI login (WAF bypass). These are public reverse-engineered app constants.
+            oneAppClientId = "4f4953b5-02e1-4dbc-8599-87e983ee1be5",
+            oneAppRedirectUri = "https://oneapp.hyundai.com/redirect",
+            cciApiBaseUrl = "https://cci-api-eu.hyundai.com",
+            cciPackageId = "com.hyundai.oneapp.eu",
+            cciClientName = "hyundai",
+            cciClientVersion = "1.3.3",
+            cciClientOsVersion = "18.7",
+            cciNotificationProvider = "APNS",
         )
-
-        // ─────────────────────────────────────────────────────────────────────────────────────
-        // FUTURE: Hyundai "OneApp" (new myHyundai app) config. Extracted from the OneApp config
-        // JSON — NOT wired up. OneApp is a distinct backend from the classic CCS API above:
-        // different client_id, different API domain, different OAuth scope + redirect. The IDP
-        // is shared (idpconnect-eu.hyundai.com). Ported partial only; a real migration needs
-        // captured vehicle/control request shapes from OneApp traffic. Track upstream community
-        // projects (bluelinky, hyundai_kia_connect_api) before rewriting.
-        //
-        //   client_id      = 4f4953b5-02e1-4dbc-8599-87e983ee1be5
-        //   api domain     = https://cci-api-eu.hyundai.com   (prod)
-        //                    https://pilot-cci-api-eu.hyundai.com  (staging)
-        //   redirect_uri   = https://oneapp.hyundai.com/redirect
-        //   scope          = account.token.transfer account.id.generate
-        //                    account.puid.userinfos account.userinfo read
-        //                    account.userinfos puid email name mobileNum birthdate
-        //                    lang country signUpDate gender nationInfo certProfile offline
-        //   authorize URL  = https://idpconnect-eu.hyundai.com/auth/api/v2/user/oauth2/authorize
-        //   logout URL     = https://idpconnect-eu.hyundai.com/auth/api/v1/accounts/signout
-        //   ccs enrol URL  = https://prd.eu-ccapi.hyundai.com:8080/api/v1/profile/cci/vehicles
-        //
-        // NOT captured (needs a real device capture):
-        //   - client_secret (if OAuth grant is confidential; may be PKCE-only)
-        //   - stamp cfb (if OneApp still uses the CCS Stamp header)
-        //   - vehicle / status / control endpoint paths on cci-api-eu.hyundai.com
-        //   - request/response shapes for status + door control
-        //
-        // Only add euHyundaiOneApp() once we have all of the above verified.
-        // ─────────────────────────────────────────────────────────────────────────────────────
     }
 }

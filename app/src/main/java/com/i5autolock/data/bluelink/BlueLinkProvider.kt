@@ -8,7 +8,6 @@ import com.i5autolock.data.settings.AppSettings
 import com.i5autolock.data.settings.SettingsRepository
 import com.i5autolock.domain.ActivityLog
 import com.i5autolock.domain.LogLevel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.HttpClient
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,7 +19,6 @@ import javax.inject.Singleton
  */
 @Singleton
 class BlueLinkProvider @Inject constructor(
-    @ApplicationContext private val appContext: android.content.Context,
     private val httpClient: HttpClient,
     private val secureStore: SecureStore,
     private val settingsRepo: SettingsRepository,
@@ -55,7 +53,6 @@ class BlueLinkProvider @Inject constructor(
                 secureStore,
                 settingsRepo,
                 metrics,
-                appContext,
                 diag = { activityLog.add(LogLevel.INFO, it) },
             )
             // US/CA/AU: not yet implemented — fail clearly instead of hitting EU endpoints.

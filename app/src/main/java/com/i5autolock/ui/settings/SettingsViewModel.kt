@@ -187,6 +187,19 @@ class SettingsViewModel @Inject constructor(
         log.add(LogLevel.INFO, "Signed out.")
     }
 
+    /**
+     * Clears the stored CCSP device id so the next command re-registers with Hyundai. Useful when
+     * commands are rejected with "Please check your vehicle status" — a stale device registration
+     * on the account can silently block every remote command.
+     */
+    fun resetDeviceRegistration() = viewModelScope.launch {
+        val s = settingsRepo.settings.first()
+        withContext(Dispatchers.IO) { provider.client(s).resetDeviceRegistration() }
+        val msg = appContext.getString(com.i5autolock.R.string.reset_device_done)
+        _notice.value = msg
+        log.add(LogLevel.INFO, msg)
+    }
+
     /** Verifies the current EU session by hitting the vehicles endpoint. Reports via _notice + log. */
     fun checkCredentials() = viewModelScope.launch {
         val s = settingsRepo.settings.first()

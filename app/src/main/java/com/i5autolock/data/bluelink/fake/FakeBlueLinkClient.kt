@@ -31,12 +31,6 @@ class FakeBlueLinkClient @Inject constructor() : BlueLinkClient {
         return CommandResult.Success("Signed in (simulated) as $username")
     }
 
-    override suspend fun loginWithRefreshToken(refreshToken: String): CommandResult {
-        delay(400)
-        authed.set(true)
-        return CommandResult.Success("Signed in (simulated) with refresh token")
-    }
-
     override suspend fun loginWithPassword(username: String, password: String): CommandResult {
         delay(600)
         authed.set(true)

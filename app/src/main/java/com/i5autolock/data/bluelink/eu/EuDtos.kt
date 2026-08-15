@@ -6,11 +6,24 @@ import kotlinx.serialization.Serializable
 /** Wire DTOs for the EU CCS API. Only the fields we consume are declared. */
 
 @Serializable
-data class TokenResponse(
-    @SerialName("access_token") val accessToken: String,
-    @SerialName("refresh_token") val refreshToken: String? = null,
-    @SerialName("token_type") val tokenType: String = "Bearer",
-    @SerialName("expires_in") val expiresIn: Long = 3600,
+data class CciTokenResponse(
+    val accessToken: String = "",
+    val refreshToken: String = "",
+    val nonCcsToken: String = "",
+    val exchangeableAccessToken: String = "",
+    val exchangeableRefreshToken: String = "",
+    val nonCcsRefreshToken: String = "",
+    val idToken: String = "",
+    val expiresIn: Long = 3599,
+)
+
+/** CCS token-exchange response — yields the token used against the ccapi:8080 endpoints. */
+@Serializable
+data class CcsExchangeResponse(
+    val accessToken: String? = null,
+    val ccsAccessToken: String? = null,
+    /** Epoch millis when the CCS token expires (when present). */
+    val expiresTime: Long? = null,
 )
 
 @Serializable

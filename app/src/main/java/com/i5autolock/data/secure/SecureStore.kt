@@ -21,6 +21,15 @@ data class SessionTokens(
     val deviceId: String? = null,
     val controlToken: String? = null,
     val controlTokenExpiresAtEpochMs: Long = 0L,
+    // EU OneApp/CCI login: [accessToken] is a CCS token exchanged from the CCI access token,
+    // [refreshToken] is the CCI refresh token. These extra CCI fields are persisted so the
+    // session can be refreshed (cci-api token-refresh + CCS re-exchange) without a full login.
+    val cciAccessToken: String? = null,
+    val exchangeableToken: String? = null,
+    val exchangeableRefreshToken: String? = null,
+    val nonCcsToken: String? = null,
+    val nonCcsRefreshToken: String? = null,
+    val idToken: String? = null,
 ) {
     val isAccessExpired: Boolean get() = System.currentTimeMillis() >= (expiresAtEpochMs - 60_000)
 }
@@ -81,6 +90,7 @@ class SecureStore @Inject constructor(
     /** CCSP device id registered with the EU backend (required for status/control calls). */
     fun saveDeviceId(deviceId: String) = prefs.edit().putString(KEY_DEVICE_ID, deviceId).apply()
     fun loadDeviceId(): String? = prefs.getString(KEY_DEVICE_ID, null)
+    fun clearDeviceId() = prefs.edit().remove(KEY_DEVICE_ID).apply()
 
     /** BlueLink service PIN, needed to obtain an EU control token for lock/unlock. */
     fun savePin(pin: String) = prefs.edit().putString(KEY_PIN, pin).apply()

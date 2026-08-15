@@ -31,7 +31,8 @@ analytics. If a feature doesn't serve the one job, don't build it.
   - `BlueLinkClient` (interface), `Region`, `RegionConfig`, `BlueLinkProvider` (picks client).
   - `MeteredBlueLinkClient` — decorator that times every call into `ApiMetrics`.
   - `model/` — domain models (`Vehicle`, `VehicleStatus`, `LockState`, `CommandResult`).
-  - `eu/` — real EU flow: `EuAuth` (Stamp + OAuth URL), `EuDtos`, `EuBlueLinkClient`.
+  - `eu/` — real EU flow: `EuAuth` (Stamp + RSA password), `EuDtos`, `EuBlueLinkClient`,
+    `EuIdpAuth` (OneApp/CCI login + refresh).
   - `fake/` — `FakeBlueLinkClient` for DRY_RUN/demo/tests.
 - `domain/` — orchestration & policy (framework-light, unit-testable):
   - `detection/` — `DetectionState`, `DetectionEvent`, `LockStateMachine` (pure).
@@ -56,17 +57,29 @@ State flow: `IDLE → (ARMED) → CONFIRMING → GRACE → VERIFYING → LOCKING
 Reconnect or user-cancel → `ABORTED`.
 
 ### 4b. EU BlueLink auth (`data/bluelink/eu`)
-EU uses OAuth2. **Primary path is fully automatic, headless email+password** (ported from
-`bluelink-refresh-token`), which avoids reCAPTCHA by talking to the IDP (`idpconnect-eu.hyundai.com`):
-1. GET `/auth/api/v2/user/oauth2/authorize` (session cookies — needs Ktor `HttpCookies`).
+EU sign-in is **fully automatic, headless email + password via the OneApp/CCI flow** (`EuIdpAuth`,
+ported from `hyundai_kia_connect_api` #1277 / `bluelink-refresh-token` v6.9.0). Since 2026-08-11
+Hyundai's IDPConnect **WAF blocks the legacy login `client_id`** (`6d477c38…` with the `:8080`
+redirect) — "classified as an abusing request and blocked". The OneApp `client_id` is not on that
+block list, so login now uses it (raw OkHttp — the root cause was the client_id, NOT a TLS
+fingerprint, so no WebView is needed):
+1. GET `idpconnect-eu.hyundai.com/auth/api/v2/user/oauth2/authorize?client_id=<oneAppClientId>&redirect_uri=<oneAppRedirectUri>&state=ccsp&country=de` (session cookies).
 2. GET `/auth/api/v1/accounts/certs` → JWK; RSA/PKCS1v1.5-encrypt password to hex (`EuAuth.encryptPassword`).
-3. POST `/auth/account/signin` (form: encryptedPassword=true, password hex, kid, …) → **302 with `?code=`**.
-4. POST `/auth/api/v2/user/oauth2/token` (grant_type=authorization_code, client_id, client_secret) → tokens.
-`EuBlueLinkClient.loginWithPassword()`. Refresh (`ensureFreshSession` / `loginWithRefreshToken`) hits the
-same IDP token endpoint with `grant_type=refresh_token` + client_id/secret. A pasted 48-char refresh
-token is kept as an **Advanced** fallback.
-The **access token** is then used against the CCSP API (`prd.eu-ccapi.hyundai.com:8080/api/v1/spa/...`).
-Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-device-id`, `Stamp`
+3. POST `/auth/account/signin` (form: encryptedPassword=true, password hex, kid, client_id=oneApp, …) → **302 straight to the OneApp redirect with `?code=`** (no connector chase).
+4. POST `cci-api-eu.hyundai.com/domain/api/v1/auth/token?code=…` (CCI headers) → **CCI token set** (accessToken, refreshToken, nonCcsToken, exchangeable*, idToken).
+5. POST `cci-api-eu.hyundai.com/domain/api/v1/auth/token-exchange?serviceType=CCS` (CCI headers) → **CCS token** (`accessToken`/`ccsAccessToken` + `expiresTime`).
+`EuBlueLinkClient.loginWithPassword()`. **Refresh** (`ensureFreshSession`): POST
+`cci-api-eu…/domain/api/v2/auth/token-refresh` (full CCI set in a JSON body) → new CCI set → re-exchange
+the CCS token. The CCI set is persisted in `SessionTokens` (`cciAccessToken`, `exchangeableToken`,
+`exchangeableRefreshToken`, `nonCcsToken`, `nonCcsRefreshToken`, `idToken`); `accessToken` = CCS token,
+`refreshToken` = CCI refresh token. No password is stored — an expired CCI refresh token → re-auth.
+CCI headers: `client-id`=package id (`com.hyundai.oneapp.eu`), `client-name`, `client-version` (1.3.3),
+`client-os-code`=ios, `client-os-version`, `client-device-id`=CCSP deviceId, `client-device-model`=iPhone,
+`client-notification-provider-type` (APNS), `locale`, `timezone`, `authorization: Bearer <cciAccess>`,
+`Authentication: <nonCcsToken>`, `exchangeable-token`/`non-ccs-token`, UA `okhttp/3.12.0`.
+The **CCS token** is then used as a Bearer against the existing CCSP API
+(`prd.eu-ccapi.hyundai.com:8080/api/v1/spa/...`) — unchanged. Every CCSP request still carries
+`ccsp-service-id` (legacy `clientId`), `ccsp-application-id`, `ccsp-device-id`, `Stamp`
 (`EuAuth.generateStamp`), `User-Agent: okhttp/3.12.0`, `Accept-Encoding: gzip`, `Connection: Keep-Alive`.
 
 **EU lock uses a control-token flow** (ported from BlueDeck): register a device id via
@@ -76,8 +89,10 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
 `Authorization`. The 4-digit BlueLink PIN is captured at login and stored in `SecureStore` (encrypted).
 
 > EU constants in `RegionConfig` (base URL, `clientId`/service-id, `appId`, `clientSecret`,
-> `basicAuth`, `stampCfb`) are verified against **BlueDeck** and `hyundai_kia_connect_api`.
-> These are public reverse-engineered app constants, NOT user credentials. Keep ALL EU
+> `basicAuth`, `stampCfb`, `oneAppClientId`, `oneAppRedirectUri`, `cciApiBaseUrl`, cci client
+> headers) are verified against **BlueDeck**, `hyundai_kia_connect_api` (#1277) and
+> `bluelink-refresh-token` (v6.9.0). These are public reverse-engineered app constants, NOT
+> user credentials. Keep ALL EU
 > specifics inside `data/bluelink/eu`.
 
 > **Endpoints/keys in `RegionConfig` and `EuBlueLinkClient` are reverse-engineered from
@@ -522,6 +537,59 @@ Every CCSP request carries `ccsp-service-id`, `ccsp-application-id`, `ccsp-devic
   `action poll: ✓ close confirmed by car (resultCode=0000)` on real completion (or the failure/timeout
   equivalents), so the UI can no longer report a false green tick. Endpoints/headers unchanged; the
   poll uses regular authed CCSP headers.
+- Round 20 (poll diagnostics + v1 fallback + surface Hyundai's message + device re-registration):
+  Round 19's poll had two blind spots. (1) The whole 30 s window burned on a single hung request
+  (Ktor's global 30 s request timeout) so we got "1 tries" and no data. Fix: per-request timeout of
+  **8 s** via Ktor `timeout { requestTimeoutMillis = 8_000 }` inside the loop — three probes fit in
+  the window now. (2) The v2 records endpoint returns **HTTP 404 "Not Found"** for our account,
+  while **v1** works. Fix: `pollCommandStatus` now tries both candidates
+  (`/api/v2/spa/notifications/{id}/records` first, `/api/v1/spa/notifications/{id}/records` fallback)
+  and drops the failing one after the first successful hit, so subsequent polls in the same window
+  only call the working path. First-probe log line now shows `action poll (v2|v1) #N → HTTP <code>
+  in <ms>ms | body: <snippet>` and, on a match, `action poll (v1): matched record → {…full JSON…}`
+  so the actual failure reason is visible.
+  The matched-record log then revealed Hyundai's real refusal on the user's Ioniq 5: `{"result":
+  "fail","record":"[Fail] Cannot unlock door. Please check your vehicle status.", createdAt … updatedAt
+  (Δ 187ms)}` — a **server-side pre-check reject** by CCSP (car never contacted), which the persistent
+  `503 resCode 5031 "Unavailable remote control"` on the wake endpoint had already been hinting at.
+  Two client-side changes made this actionable: `ActionCheck` now carries the raw `record` field;
+  `confirmActionOrReport` uses it directly — the UI toast now reads `Hyundai says: Cannot unlock door.
+  Please check your vehicle status. Usually means remote services are disabled in the car, the car is
+  offline/asleep, ignition is on, or the door is already in the requested state.` instead of a cryptic
+  `resultCode=fail`. And `BlueLinkClient` gained `resetDeviceRegistration()` (default no-op; EU impl
+  calls `SecureStore.clearDeviceId()` so `ensureDeviceRegistered` re-registers on the next call), with
+  a Settings → Account "Reset device registration" button + short hint (`set_reset_device` /
+  `set_reset_device_hint` / `reset_device_done`, translated across all 5 locales). Useful when a stale
+  CCSP deviceId is silently blocking every remote command.
+- Round 21 (EU login rewrite — OneApp/CCI WAF bypass): since 2026-08-11 Hyundai's IDPConnect WAF
+  blocks the legacy login `client_id` (`6d477c38…` + `:8080` redirect) entirely — "classified as an
+  abusing request and blocked". Root cause confirmed (hyundai_kia_connect_api#1277 /
+  bluelink-refresh-token v6.9.0) as the **client_id block, NOT a TLS fingerprint**, so the whole
+  WebView machinery was redundant. Rewrote EU sign-in to the **OneApp/CCI flow** over raw OkHttp:
+  authorize with `oneAppClientId` (`4f4953b5…`, redirect `oneapp.hyundai.com/redirect`) → certs →
+  RSA-encrypt password → `/auth/account/signin` (302 direct to the OneApp redirect with `?code=`) →
+  exchange the code at `cci-api-eu.hyundai.com/domain/api/v1/auth/token` for the CCI token set →
+  exchange that at `…/v1/auth/token-exchange?serviceType=CCS` for a **CCS token** that the existing
+  `ccapi:8080` vehicle/control endpoints still accept as a Bearer. Refresh = CCI
+  `…/v2/auth/token-refresh` (full CCI set as JSON) → re-exchange CCS. Changes:
+  `RegionConfig` gained `oneAppClientId`/`oneAppRedirectUri`/`cciApiBaseUrl`/`cciPackageId`/
+  `cciClientName`/`cciClientVersion`/`cciClientOsVersion`/`cciNotificationProvider` (removed the old
+  "FUTURE OneApp" comment block); `SessionTokens` gained the CCI fields (`cciAccessToken`,
+  `exchangeableToken`/`Refresh`, `nonCcsToken`/`Refresh`, `idToken`); `EuDtos` swapped the OAuth
+  `TokenResponse` for `CciTokenResponse` + `CcsExchangeResponse`; `EuIdpAuth` fully rewritten
+  (`login()` + `refresh()`, CCI header/timezone helpers, shared cookie jar); `EuBlueLinkClient`
+  `loginWithPassword`/`ensureFreshSession`/`persist` use the CCI flow; the dead `login(code)` OAuth
+  exchange, `loginWithRefreshToken`, `idpTokenRefresh`, `idpHeaders` and the `appContext` ctor param
+  were removed. **Deleted redundant code:** `EuWebLogin.kt` (WebView login), the whole WebView +
+  external-browser + 48-char-refresh-token UI in `LoginScreen`/`LoginViewModel` (now a single
+  email + password + PIN form + demo), `EuAuth.buildAuthorizeUrl`/`urlEncode`,
+  `BlueLinkClient.loginWithRefreshToken` (+ Fake/Unsupported/Metered overrides), and the manifest
+  `i5autolock://oauth` deep-link intent-filter. Also fixed a Round-20 bug: `MeteredBlueLinkClient`
+  now forwards `resetDeviceRegistration()` (previously the interface default no-op swallowed it before
+  it reached the EU client). Added the login hosts (`idpconnect-eu`, `cci-api-eu` for hyundai+kia) to
+  `network_security_config.xml`. Vehicle status, lock/unlock, control-token, device registration,
+  diagnostics and the msgId polling are unchanged — they still run on the CCS token against ccapi:8080.
+  Tests/lint/assembleDebug green.
 
 
 
