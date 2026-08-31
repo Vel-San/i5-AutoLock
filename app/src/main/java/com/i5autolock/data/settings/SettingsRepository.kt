@@ -123,7 +123,8 @@ class SettingsRepository @Inject constructor(
                 val parts = entry.split('\u001F')
                 if (parts.size < 3) return@mapNotNull null
                 val ccs2 = parts.getOrNull(3)?.let { it == "1" } ?: true
-                KnownVehicle(parts[0], parts[1], parts[2], ccs2 = ccs2)
+                val legacyControl = parts.getOrNull(4)?.let { it == "1" } ?: false
+                KnownVehicle(parts[0], parts[1], parts[2], ccs2 = ccs2, legacyControl = legacyControl)
             }
             ?: emptyList(),
         accountEmail = this[Keys.ACCOUNT_EMAIL],
@@ -177,7 +178,7 @@ class SettingsRepository @Inject constructor(
             next.vehicleId?.let { prefs[Keys.VEHICLE_ID] = it } ?: prefs.remove(Keys.VEHICLE_ID)
             next.vehicleNickname?.let { prefs[Keys.VEHICLE_NICK] = it } ?: prefs.remove(Keys.VEHICLE_NICK)
             prefs[Keys.KNOWN_VEHICLES] = next.knownVehicles
-                .map { "${it.id}\u001F${it.nickname}\u001F${it.model}\u001F${if (it.ccs2) "1" else "0"}" }
+                .map { "${it.id}\u001F${it.nickname}\u001F${it.model}\u001F${if (it.ccs2) "1" else "0"}\u001F${if (it.legacyControl) "1" else "0"}" }
                 .toSet()
             next.accountEmail?.let { prefs[Keys.ACCOUNT_EMAIL] = it } ?: prefs.remove(Keys.ACCOUNT_EMAIL)
             prefs[Keys.ONBOARDING_DONE] = next.onboardingComplete

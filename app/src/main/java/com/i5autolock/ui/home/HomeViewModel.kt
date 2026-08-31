@@ -23,7 +23,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.content.Context
 import javax.inject.Inject
 
@@ -87,7 +89,8 @@ class HomeViewModel @Inject constructor(
         }
         // Pull a fresh snapshot on open (respects the auto-refresh-on-open setting).
         refreshStatus(force = false)
-        viewModelScope.launch {
+        // Service start + WorkManager scheduling do disk I/O — keep them off the main thread.
+        viewModelScope.launch(Dispatchers.IO) {
             val s = settingsRepo.settings.first()
             if (s.enabled) AutoLockService.startWatching(appContext)
             // (Re)schedule the periodic background refresh to match the setting.
@@ -205,6 +208,13 @@ class HomeViewModel @Inject constructor(
             return@launch
         }
         if (!force && !s.autoRefreshOnOpen) return@launch
+        // On open (not a manual/pull refresh), skip the network round-trip when the cached snapshot
+        // is still fresh — the card already shows it, so opening the app repeatedly no longer spams
+        // the API or stutters. A manual refresh (force=true) always fetches.
+        if (!force) {
+            val cachedAt = statusCache.cached.first().updatedAtEpochMs
+            if (cachedAt > 0 && System.currentTimeMillis() - cachedAt < ON_OPEN_FRESH_MS) return@launch
+        }
         if (force) {
             // Respect the API's rate-limit cooldown so we don't get further throttled.
             val snap = metrics.snapshot.value
@@ -221,12 +231,17 @@ class HomeViewModel @Inject constructor(
         val vehicleId = s.vehicleId ?: "demo-ioniq5"
         _vehicleStatus.update { it.copy(loading = true, error = null) }
         val client = provider.client(s)
-        if (!s.demoMode && !client.ensureFreshSession()) {
-            // Session expired — keep details but prompt a re-sign-in.
+        // All the Keystore/token/network work runs off the main thread so the UI never stutters.
+        // null result = session expired (needs re-auth).
+        val result: Result<VehicleStatus>? = withContext(Dispatchers.IO) {
+            if (!s.demoMode && !client.ensureFreshSession()) null
+            else runCatching { client.status(vehicleId, forceRefresh = force) }
+        }
+        if (result == null) {
             _vehicleStatus.update { it.copy(loading = false, error = "Session expired — please sign in again.", needsReauth = true) }
             return@launch
         }
-        runCatching { client.status(vehicleId, forceRefresh = force) }
+        result
             .onSuccess { fresh ->
                 // Merge so a partial (force-refresh) response never wipes existing detail — and the
                 // notification/widget summary is built from the merged status too.
@@ -253,4 +268,9 @@ class HomeViewModel @Inject constructor(
 
     private fun isLowVoltage(status: VehicleStatus, s: AppSettings): Boolean =
         s.lowVoltageAlert && (status.twelveVoltPercent?.let { it < s.lowVoltageThreshold } ?: false)
+
+    private companion object {
+        // Don't re-fetch on app open if the cached status is younger than this.
+        const val ON_OPEN_FRESH_MS = 5 * 60_000L
+    }
 }

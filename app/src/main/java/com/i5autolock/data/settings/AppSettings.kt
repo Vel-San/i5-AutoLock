@@ -22,6 +22,8 @@ data class KnownVehicle(
     val model: String,
     /** True for CCS2 vehicles (Ioniq 5, EV6, IONIQ 6, newer Kona). Default true — our primary target. */
     val ccs2: Boolean = true,
+    /** True when this car needs the legacy v1 control protocol (learned when CCS2 control is rejected). */
+    val legacyControl: Boolean = false,
 )
 
 /** Pieces of vehicle info the user can show/hide in the ongoing notification. */

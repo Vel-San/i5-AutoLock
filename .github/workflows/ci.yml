@@ -27,6 +27,7 @@ jobs:
           test -f CLAUDE.md || { echo "::error::CLAUDE.md is missing"; exit 1; }
           test -f README.md || { echo "::error::README.md is missing"; exit 1; }
           test -f CHANGELOG.md || { echo "::error::CHANGELOG.md is missing"; exit 1; }
+          test -f LICENSE || { echo "::error::LICENSE is missing"; exit 1; }
 
       - name: CLAUDE.md is non-trivial (kept up to date)
         run: |

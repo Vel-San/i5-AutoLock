@@ -235,7 +235,10 @@ class EuIdpAuth {
         val data = json.decodeFromString<CcsExchangeResponse>(body)
         val ccs = (data.accessToken ?: data.ccsAccessToken)?.removePrefix("Bearer ")?.trim()
         if (ccs.isNullOrBlank()) throw LoginException("CCS token exchange returned no accessToken.")
-        val expiry = data.expiresTime ?: (System.currentTimeMillis() + 3600_000L)
+        // `expiresTime` is the CCS token TTL in SECONDS (e.g. 86400 = 24h), not an epoch — treat it
+        // as a duration from now (per hyundai_kia_connect_api). Fall back to +1h when absent.
+        val expiry = data.expiresTime?.let { System.currentTimeMillis() + it * 1000L }
+            ?: (System.currentTimeMillis() + 3600_000L)
         return ccs to expiry
     }
 

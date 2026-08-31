@@ -182,7 +182,9 @@ class EuBlueLinkClient(
         while (System.currentTimeMillis() < deadline) {
             attempt++
             for ((idx, url) in candidates.withIndex()) {
-                val label = if (idx == 0) "v2" else "v1"
+                // Label from the URL, not the index — after we drop a failing candidate the
+                // remaining one shifts to index 0 and would otherwise be mislabeled.
+                val label = if (url.contains("/api/v2/")) "v2" else "v1"
                 val start = System.currentTimeMillis()
                 val result = runCatching {
                     http.get(url) {
@@ -441,6 +443,20 @@ class EuBlueLinkClient(
     private suspend fun isCcs2Vehicle(vehicleId: String): Boolean {
         val known = settingsRepo.settings.first().knownVehicles.firstOrNull { it.id == vehicleId }
         return known?.ccs2 ?: true
+    }
+
+    /** True when this vehicle is known (persisted or learned this session) to need v1 control. */
+    private suspend fun needsLegacyControl(vehicleId: String): Boolean {
+        if (vehicleId in v1ControlVehicles) return true
+        return settingsRepo.settings.first().knownVehicles.firstOrNull { it.id == vehicleId }?.legacyControl == true
+    }
+
+    /** Remembers (in-memory + persisted) that this vehicle needs the legacy v1 control protocol. */
+    private suspend fun markLegacyControl(vehicleId: String) {
+        v1ControlVehicles.add(vehicleId)
+        settingsRepo.update { s ->
+            s.copy(knownVehicles = s.knownVehicles.map { if (it.id == vehicleId) it.copy(legacyControl = true) else it })
+        }
     }
 
     /**
@@ -717,7 +733,7 @@ class EuBlueLinkClient(
                 ?: return CommandResult.Failure("Add your 4-digit BlueLink PIN to lock the car.")
             val action = if (close) "close" else "open"
             // Skip CCS2 control for cars we've learned need v1 (CCS2 status but legacy control).
-            val ccs2 = isCcs2Vehicle(vehicleId) && vehicleId !in v1ControlVehicles
+            val ccs2 = isCcs2Vehicle(vehicleId) && !needsLegacyControl(vehicleId)
 
             // Ioniq 5 / EV6 / IONIQ 6 (CCS2) use v2/ccs2 with a "command" body. Older cars (Kona
             // PHEV, older IONIQ) use v1 with "action" + deviceId. For known-CCS2 vehicles we go
@@ -825,9 +841,9 @@ class EuBlueLinkClient(
                             confirmActionOrReport(vehicleId, msgId, action, close)
                         }
                         // v1 worked where CCS2 was car-rejected → remember to use v1 control for
-                        // this vehicle for the rest of the session (skip the wasted CCS2 attempt).
+                        // this vehicle (in-memory + persisted) so we skip the wasted CCS2 attempt.
                         if (carRejected && result is CommandResult.Success) {
-                            v1ControlVehicles.add(vehicleId)
+                            markLegacyControl(vehicleId)
                             diag("control/door: v1 control works for this car — using v1 for future commands.")
                         }
                         result

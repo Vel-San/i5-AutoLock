@@ -682,6 +682,44 @@ The **CCS token** is then used as a Bearer against the existing CCSP API
   token) and no `AuthorizationCCSP`/control token, `{action, deviceId}` body — matching the reference
   exactly. So a flag-0 Ioniq 5 whose CCS2 control is car-rejected now retries v1 with headers the
   legacy endpoint accepts. Tests/lint/assembleDebug green.
+- Round 28 (lock/unlock now working — token-expiry bug, poll-label bug, persisted v1 control): with the
+  Round-27 fix the user's Ioniq 5 locked/unlocked successfully via the v1 fallback. Log review surfaced
+  three items. (1) **CCS token expiry bug** — the CCI→CCS `token-exchange` returns `expiresTime` as a
+  **TTL in seconds** (e.g. 86400=24h), not an epoch (per hyundai_kia_connect_api). `EuIdpAuth.exchangeCcsToken`
+  was storing it directly as `expiresAtEpochMs`, so the token was always "expired" (epoch 1970 + 86 s) and
+  **every** status/command did a full CCI token-refresh + re-exchange (two round-trips, visible as the
+  duplicate `refresh: CCI token-refresh`/`CCS token exchange` pairs before each action). Fixed:
+  `expiresAtEpochMs = now + expiresTime*1000` (fallback +1h) — the session now lasts ~24 h and refresh only
+  runs when genuinely stale. (2) **Poll-label bug** — `pollCommandStatus` derived the `v2`/`v1` log label
+  from the loop index; after dropping the failing v2 candidate, the surviving v1 shifted to index 0 and got
+  mislabeled `(v2)`. Now labels from the URL (`/api/v2/` → v2). (3) **Persisted v1 control** — the learned
+  "this car needs v1 control" flag was in-memory only. Added `KnownVehicle.legacyControl` (persisted in the
+  `KNOWN_VEHICLES` DataStore string as a 5th field); `needsLegacyControl()` reads it + the session set,
+  `markLegacyControl()` writes both, so after the first successful v1 fallback the car skips the wasted CCS2
+  control attempt permanently (status stays on CCS2). Tests/lint/assembleDebug green.
+- Round 29 (app-open lag/stutter — off-main + cached-first): opening the app janked for several seconds.
+  Cause: `HomeViewModel.refreshStatus(force=false)` ran on every open on the **Main dispatcher**, and the
+  blocking `SecureStore`/Keystore reads inside `ensureFreshSession()` (EncryptedSharedPreferences /
+  StrongBox init + token decrypt) stalled the UI; it also hit the network on **every** open. (The
+  Round-28 token-expiry bug made this far worse — every call did a full CCI re-auth.) Fixes: (1) the
+  whole token/network block now runs in `withContext(Dispatchers.IO)` (session check + `status()` off
+  the main thread; only StateFlow updates stay on Main); (2) **cached-first on open** — when not a
+  manual/pull refresh, skip the network round-trip if the cached snapshot is younger than
+  `ON_OPEN_FRESH_MS` (5 min), so repeated opens no longer spam the API (the card already shows the
+  cached status via the `StatusCache` collector); (3) the init service-start + WorkManager reschedule
+  moved to `Dispatchers.IO` (disk I/O). Vehicles were never reloaded on the Home screen — they're cached
+  in `knownVehicles` and only fetched on the Settings screen — so no change needed there. A manual
+  refresh (`force=true`) always fetches. Tests/lint/assembleDebug green.
+- Round 30 (open-source readiness audit): repo-wide check for public release. Added the missing
+  **`LICENSE`** (MIT © 2026 Vel-San) + a README "License" section, and made CI's required-docs step
+  also require `LICENSE`. Fixed stale README claims — login is now headless **email + password
+  (OneApp/CCI)**, not the removed WebView/OAuth flow (updated the feature bullet, First-launch step,
+  the `FLAG_SECURE` login note, the project-structure `eu/` line, and the pre-lock guard now also
+  skips on an open door/window). Audit results (all clean): no secret/keystore/config files tracked
+  (`git ls-files`), CI secret-pattern scan clean, no hardcoded PIN/token/password literals, no personal
+  paths/names/emails in tracked source (only placeholders), `allowBackup=false`, no cleartext traffic,
+  encrypted tokens, no build artifacts committed. The `client_id`/`secret`/`stamp` constants in
+  `RegionConfig` are public reverse-engineered app constants (documented), not user credentials.
 
 
 
