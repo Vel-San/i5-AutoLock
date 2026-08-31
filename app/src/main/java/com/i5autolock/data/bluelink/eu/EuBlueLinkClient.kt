@@ -27,8 +27,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.http.parameters
-import io.ktor.client.request.forms.FormDataContent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -38,7 +36,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
@@ -69,6 +66,11 @@ class EuBlueLinkClient(
 
     // Timestamp of the last live vehicle poll (carstatus), to rate-limit forced refreshes.
     @Volatile private var lastLivePollAtMs = 0L
+
+    // Vehicles that report CCS2 status but need the LEGACY v1 control protocol (Hyundai's vehicle
+    // list flags them ccuCCS2ProtocolSupport=0). Learned when a CCS2 control command is car-rejected
+    // and v1 then works; skips the wasted CCS2 attempt for the rest of the session.
+    private val v1ControlVehicles = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     /** Registered CCSP device id (empty until [ensureDeviceRegistered] runs). */
     private fun currentDeviceId(): String = secureStore.loadDeviceId() ?: ""
@@ -249,18 +251,7 @@ class EuBlueLinkClient(
             ActionState.FAILED -> {
                 val code = check.resultCode ?: "unknown"
                 diag("action poll: ✗ car reported failure for $action (resultCode=$code)")
-                // Prefer Hyundai's own human-readable "record" message (e.g. "[Fail] Cannot unlock
-                // door. Please check your vehicle status.") — it's the same wording the myHyundai
-                // app shows and gives the user a real starting point.
-                val cleaned = check.record
-                    ?.replace(Regex("^\\[[^]]+]\\s*"), "") // strip leading "[Fail] "
-                    ?.trim()
-                    ?.takeIf { it.isNotBlank() }
-                if (cleaned != null) {
-                    CommandResult.Failure("Hyundai says: $cleaned Usually means remote services are disabled in the car, the car is offline/asleep, ignition is on, or the door is already in the requested state.")
-                } else {
-                    CommandResult.Failure("Car reported $action failed (resultCode $code). The car refused without a specific error — usually remote services disabled in the head-unit, car offline/asleep, ignition on, or door already in the requested state.")
-                }
+                CommandResult.Failure(actionFailureReason(check, action))
             }
             ActionState.PENDING -> {
                 CommandResult.Failure("Command queued but the car didn't confirm within 30 s. It may be offline / in a poor signal area / asleep. Try again in a minute.")
@@ -268,8 +259,24 @@ class EuBlueLinkClient(
         }
     }
 
+    /** Builds the user-facing reason for a car-reported action failure (prefers Hyundai's message). */
+    private fun actionFailureReason(check: ActionCheck, action: String): String {
+        // Prefer Hyundai's own human-readable "record" (e.g. "[Fail] Cannot unlock door. Please
+        // check your vehicle status.") — the same wording the myHyundai app shows.
+        val cleaned = check.record
+            ?.replace(Regex("^\\[[^]]+]\\s*"), "") // strip leading "[Fail] "
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val code = check.resultCode ?: "unknown"
+        return if (cleaned != null) {
+            "Hyundai says: $cleaned Usually means remote services are disabled in the car, the car is offline/asleep, ignition is on, or the door is already in the requested state."
+        } else {
+            "Car reported $action failed (resultCode $code). The car refused without a specific error — usually remote services disabled in the head-unit, car offline/asleep, ignition on, or door already in the requested state."
+        }
+    }
+
     /** CCSP headers required on EVERY EU request (matches the official app / BlueDeck). */
-    private fun baseHeaders(builder: io.ktor.client.request.HttpRequestBuilder) {
+    private fun baseHeaders(builder: io.ktor.client.request.HttpRequestBuilder, ccs2: Boolean = true) {
         builder.header("ccsp-service-id", config.clientId)
         config.appId?.let { builder.header("ccsp-application-id", it) }
         builder.header("ccsp-device-id", currentDeviceId())
@@ -277,9 +284,9 @@ class EuBlueLinkClient(
         builder.header("Accept-Encoding", "gzip")
         builder.header("Connection", "Keep-Alive")
         builder.header("User-Agent", "okhttp/3.12.0")
-        // Ioniq 5 / EV6 / IONIQ 6 use the newer CCS2 protocol; the backend rejects some legacy
-        // endpoints for these cars unless this header is present.
-        builder.header("ccuCCS2ProtocolSupport", "1")
+        // Protocol flag. CCS2 endpoints need "1"; the legacy v1 control endpoint rejects a CCS2
+        // client with 403 "Access to this API has been disallowed", so it must be "0" there.
+        builder.header("ccuCCS2ProtocolSupport", if (ccs2) "1" else "0")
     }
 
     override suspend fun isAuthenticated(): Boolean = secureStore.loadTokens() != null
@@ -497,9 +504,16 @@ class EuBlueLinkClient(
         // cached report instead, like the official app. Protects every caller (verify, refresh).
         val cooldownMs = settings.minRefreshSeconds.coerceAtLeast(1) * 1000L
         val now = System.currentTimeMillis()
-        val livePollAllowed = forceRefresh && (now - lastLivePollAtMs >= cooldownMs)
+        // Waking the car (GET /ccs2/carstatus) is what returns 503 "5031 Unavailable remote control".
+        // hyundai_kia_connect_api's NORMAL update reads the cached snapshot and never wakes; only an
+        // explicit force-refresh wakes. So we only wake when the user opts in (liveWakeRefresh) AND
+        // the cooldown has elapsed. Otherwise a "refresh" just reads the latest cached snapshot,
+        // which the backend serves reliably (200) and is what the official app shows most of the time.
+        val livePollAllowed = forceRefresh && settings.liveWakeRefresh && (now - lastLivePollAtMs >= cooldownMs)
         if (!livePollAllowed) {
-            if (forceRefresh) {
+            if (forceRefresh && !settings.liveWakeRefresh) {
+                diag("status: reading latest cached snapshot (live wake off — no 503s).")
+            } else if (forceRefresh) {
                 val waitMs = cooldownMs - (now - lastLivePollAtMs)
                 diag("status: live poll on cooldown (~${waitMs / 1000}s) — using cached report")
             }
@@ -517,9 +531,9 @@ class EuBlueLinkClient(
                 diag("carstatus: waiting ${CCS2_WAKE_DELAY_MS / 1000}s for car to report…")
                 delay(CCS2_WAKE_DELAY_MS)
             } else {
-                // Wake failed (typically 503/5031 account rate-limit). No point sleeping 25s for a
-                // car that never woke up — read cached immediately so the user still gets state.
-                diag("carstatus: wake failed → skipping 25s delay, reading cached now")
+                // Wake refused (expected 503/5031, server-side). No point sleeping 25s — read the
+                // cached snapshot immediately so the user still gets recent state.
+                diag("carstatus: car busy → reading latest cached snapshot now.")
             }
             return fetchStatusPrimary(vehicleId, cachedPath, "status/latest", ccs2)
         }
@@ -548,18 +562,25 @@ class EuBlueLinkClient(
         }
         val elapsedMs = (System.nanoTime() - start) / 1_000_000
         if (!response.ok()) {
-            val detail = describeFailure("ccs2/carstatus (wake)", response)
-            // CCSP returns 503 with resCode 5031 for account-level rate limiting. Also treat 429.
-            val bodyLower = detail.lowercase()
+            val body = response.snippet()
+            val bodyLower = body.lowercase()
+            // 503 + resCode 5031 "Unavailable remote control" is Hyundai's expected, transient
+            // server-side refusal to wake the car (per hyundai_kia_connect_api #1280 / kia_uvo
+            // #1774) — NOT a client bug. The cached snapshot still works, so log it softly.
             val rateLimited = response.status == HttpStatusCode.TooManyRequests ||
                 response.status == HttpStatusCode.ServiceUnavailable ||
                 bodyLower.contains("5031") ||
                 bodyLower.contains("rate")
+            if (rateLimited) {
+                diag("wake: car busy (HTTP ${response.status.value} 5031) — Hyundai server-side, using cached snapshot.")
+            } else {
+                describeFailure("ccs2/carstatus (wake)", response)
+            }
             metrics.record(
                 operation = "status(wake)",
                 durationMs = elapsedMs,
                 outcome = if (rateLimited) ApiOutcome.RATE_LIMITED else ApiOutcome.FAILURE,
-                detail = detail,
+                detail = body,
             )
             return false
         }
@@ -627,10 +648,27 @@ class EuBlueLinkClient(
     /** Parses the deeply-nested CCS2 status payload into our flat [VehicleStatus] model. */
     private fun parseCcs2Status(env: Ccs2StatusEnvelope): VehicleStatus {
         val v = env.resMsg?.state?.vehicle
-        val driverDoor = v?.cabin?.door?.row1?.driver
-        val locked = driverDoor?.lock
         val doorRows = listOfNotNull(v?.cabin?.door?.row1, v?.cabin?.door?.row2)
         val anyOpen = doorRows.flatMap {
+            listOfNotNull(it.driver, it.passenger, it.left, it.right)
+        }.any { (it.open ?: 0) != 0 }
+        // CCS2 door "Lock" is an UNLOCKED flag: 0 = locked, 1 = unlocked (per hyundai_kia_connect_api
+        // `is_locked = not bool(Lock)`). The car is LOCKED only when every reporting door is locked;
+        // any door reporting unlocked (1) means the car is unlocked.
+        val perDoorLocked = listOf(
+            v?.cabin?.door?.row1?.driver,
+            v?.cabin?.door?.row1?.passenger,
+            v?.cabin?.door?.row2?.left,
+            v?.cabin?.door?.row2?.right,
+        ).mapNotNull { it?.lock }.map { it == 0 }
+        val lockState = when {
+            perDoorLocked.isEmpty() -> LockState.UNKNOWN
+            perDoorLocked.any { !it } -> LockState.UNLOCKED
+            else -> LockState.LOCKED
+        }
+        // Windows (best-effort — same row/state shape as doors; null if the car doesn't report it).
+        val windowRows = listOfNotNull(v?.cabin?.window?.row1, v?.cabin?.window?.row2)
+        val anyWindowOpen = if (windowRows.isEmpty()) null else windowRows.flatMap {
             listOfNotNull(it.driver, it.passenger, it.left, it.right)
         }.any { (it.open ?: 0) != 0 }
         val ignition = v?.drivetrain?.fuelSystem?.ignitionStatus
@@ -644,13 +682,14 @@ class EuBlueLinkClient(
                 else -> value.toInt()
             }
         }
-        val lockState = when (locked) {
-            1 -> LockState.LOCKED
-            0 -> LockState.UNLOCKED
-            else -> LockState.UNKNOWN
-        }
         val battery = v?.green?.batteryManagement?.batteryRemain?.ratio?.toInt()
-        diag("ccs2 parsed: lock=$locked → $lockState, doorOpen=$anyOpen, battery=$battery%, range=${rangeKm}km, 12V=${v?.electronics?.battery?.level}%")
+        val rawLocks = listOf(
+            v?.cabin?.door?.row1?.driver?.lock,
+            v?.cabin?.door?.row1?.passenger?.lock,
+            v?.cabin?.door?.row2?.left?.lock,
+            v?.cabin?.door?.row2?.right?.lock,
+        )
+        diag("ccs2 parsed: doorLocks(0=locked)=$rawLocks → $lockState, doorOpen=$anyOpen, battery=$battery%, range=${rangeKm}km, 12V=${v?.electronics?.battery?.level}%")
         return VehicleStatus(
             lockState = lockState,
             engineRunning = engineOn,
@@ -661,6 +700,7 @@ class EuBlueLinkClient(
             climateOn = v?.cabin?.hvac?.row1?.hvac?.active?.let { it != 0 },
             twelveVoltPercent = v?.electronics?.battery?.level,
             anyDoorOpen = anyOpen,
+            anyWindowOpen = anyWindowOpen,
         )
     }
 
@@ -676,12 +716,14 @@ class EuBlueLinkClient(
             val controlAuth = controlAuthorization(vehicleId, deviceId)
                 ?: return CommandResult.Failure("Add your 4-digit BlueLink PIN to lock the car.")
             val action = if (close) "close" else "open"
-            val ccs2 = isCcs2Vehicle(vehicleId)
+            // Skip CCS2 control for cars we've learned need v1 (CCS2 status but legacy control).
+            val ccs2 = isCcs2Vehicle(vehicleId) && vehicleId !in v1ControlVehicles
 
             // Ioniq 5 / EV6 / IONIQ 6 (CCS2) use v2/ccs2 with a "command" body. Older cars (Kona
             // PHEV, older IONIQ) use v1 with "action" + deviceId. For known-CCS2 vehicles we go
-            // directly to CCS2 (no wasted round-trip). Fallback only happens on 400/403/404
-            // ("endpoint not applicable"), which also gets logged.
+            // directly to CCS2 (no wasted round-trip). Fallback happens on 400/403/404 ("endpoint
+            // not applicable") AND on a car-side rejection (some CCS2-status cars need v1 control).
+            var carRejected = false
             if (ccs2) {
                 val v2Url = "${config.apiBaseUrl}/api/v2/spa/vehicles/$vehicleId/ccs2/control/door"
                 diag("control/door $action → sending (ccs2)…")
@@ -689,6 +731,9 @@ class EuBlueLinkClient(
                 val v2 = http.post(v2Url) {
                     baseHeaders(this)
                     header("Authorization", controlAuth)
+                    // CCS2 control needs the control token in BOTH headers (per
+                    // hyundai_kia_connect_api `_get_control_headers`).
+                    header("AuthorizationCCSP", controlAuth)
                     contentType(ContentType.Application.Json)
                     setBody("""{"command":"$action"}""")
                 }
@@ -702,44 +747,64 @@ class EuBlueLinkClient(
                     if (outcome.ok) {
                         diag("control/door $action (ccs2) → HTTP ${v2.status.value} queued…$msgTail")
                         val msgId = outcome.msgId
-                        return if (msgId.isNullOrBlank()) {
-                            CommandResult.Success(if (close) "Locked" else "Unlocked")
-                        } else {
-                            confirmActionOrReport(vehicleId, msgId, action, close)
+                            ?: return CommandResult.Success(if (close) "Locked" else "Unlocked")
+                        diag("action poll: waiting for car to confirm $action (msgId=$msgId)…")
+                        val check = pollCommandStatus(vehicleId, msgId)
+                        when (check.state) {
+                            ActionState.SUCCESS -> {
+                                diag("action poll: ✓ $action confirmed by car (resultCode=${check.resultCode ?: "n/a"})")
+                                return CommandResult.Success(if (close) "Locked" else "Unlocked")
+                            }
+                            ActionState.PENDING -> return CommandResult.Failure(
+                                "Command queued but the car didn't confirm within 30 s. It may be offline / in a poor signal area / asleep. Try again in a minute.",
+                            )
+                            ActionState.FAILED -> {
+                                // Car queued then rejected the CCS2 command (often "check your
+                                // vehicle status"). Try the legacy v1 control path — some Ioniq 5s
+                                // report CCS2 status yet require v1 control. Safe: not executed.
+                                diag("control/door $action → CCS2 rejected by the car (${actionFailureReason(check, action)}); trying legacy v1 control…")
+                                carRejected = true
+                            }
                         }
+                    } else {
+                        // HTTP 200 but the backend rejected at submission — surface the exact reason.
+                        diag("✗ control/door $action (ccs2) → HTTP ${v2.status.value} but body says failure$msgTail | body: ${outcome.snippet}")
+                        val reason = outcome.resMsg?.takeIf { it.isNotBlank() }
+                            ?: outcome.resCode?.let { "resCode $it" }
+                            ?: outcome.snippet.ifBlank { "unknown" }
+                        return CommandResult.Failure("Car rejected $action: $reason")
                     }
-                    // HTTP 200 but the car/backend rejected it — surface the exact reason.
-                    diag("✗ control/door $action (ccs2) → HTTP ${v2.status.value} but body says failure$msgTail | body: ${outcome.snippet}")
-                    val reason = outcome.resMsg?.takeIf { it.isNotBlank() }
-                        ?: outcome.resCode?.let { "resCode $it" }
-                        ?: outcome.snippet.ifBlank { "unknown" }
-                    return CommandResult.Failure("Car rejected $action: $reason")
                 }
-                when (v2.status) {
-                    HttpStatusCode.TooManyRequests -> {
-                        describeFailure("control/door $action (ccs2)", v2)
-                        return CommandResult.RateLimited
+                if (!carRejected) {
+                    when (v2.status) {
+                        HttpStatusCode.TooManyRequests -> {
+                            describeFailure("control/door $action (ccs2)", v2)
+                            return CommandResult.RateLimited
+                        }
+                        HttpStatusCode.Unauthorized -> {
+                            describeFailure("control/door $action (ccs2)", v2)
+                            return CommandResult.NotAuthenticated
+                        }
+                        else -> Unit
                     }
-                    HttpStatusCode.Unauthorized -> {
-                        describeFailure("control/door $action (ccs2)", v2)
-                        return CommandResult.NotAuthenticated
-                    }
-                    else -> Unit
+                    // Only fall back for "endpoint not applicable" statuses. Real cooldowns / server
+                    // errors are reported as-is so v1's identical failure doesn't shadow them.
+                    val fallbackWorthy = v2.status.value in setOf(400, 403, 404)
+                    if (!fallbackWorthy) return CommandResult.Failure(describeFailure("control/door $action (ccs2)", v2))
+                    describeFailure("control/door $action (ccs2)", v2)
+                    diag("control/door $action → falling back to v1…")
                 }
-                // Only fall back for "endpoint not applicable" statuses. Real cooldowns / server
-                // errors are reported as-is so v1's identical failure doesn't shadow them.
-                val fallbackWorthy = v2.status.value in setOf(400, 403, 404)
-                if (!fallbackWorthy) return CommandResult.Failure(describeFailure("control/door $action (ccs2)", v2))
-                describeFailure("control/door $action (ccs2)", v2)
-                diag("control/door $action → falling back to v1…")
             }
-            // Legacy v1 path (CCS1 vehicles, or CCS2 vehicles whose flag turned out wrong).
+            // Legacy v1 path (CCS1 vehicles, or CCS2 vehicles whose flag/control protocol turned out wrong).
             val v1Url = "${config.apiBaseUrl}/api/v1/spa/vehicles/$vehicleId/control/door"
             diag("control/door $action → sending (v1)…")
             logRequest("control/door $action (v1)", "POST", v1Url)
             val v1 = http.post(v1Url) {
-                baseHeaders(this)
-                header("Authorization", controlAuth)
+                // Legacy v1 control uses the ACCESS token + protocol flag "0" (no control token /
+                // AuthorizationCCSP), matching hyundai_kia_connect_api's _get_authenticated_headers.
+                // Sending the CCS2 flag/control token here yields 403 "Access to this API disallowed".
+                baseHeaders(this, ccs2 = false)
+                header("Authorization", authHeader())
                 contentType(ContentType.Application.Json)
                 setBody("""{"action":"$action","deviceId":"$deviceId"}""")
             }
@@ -754,11 +819,18 @@ class EuBlueLinkClient(
                     if (outcome.ok) {
                         diag("control/door $action (v1) → HTTP ${v1.status.value} queued…$msgTail")
                         val msgId = outcome.msgId
-                        if (msgId.isNullOrBlank()) {
+                        val result = if (msgId.isNullOrBlank()) {
                             CommandResult.Success(if (close) "Locked" else "Unlocked")
                         } else {
                             confirmActionOrReport(vehicleId, msgId, action, close)
                         }
+                        // v1 worked where CCS2 was car-rejected → remember to use v1 control for
+                        // this vehicle for the rest of the session (skip the wasted CCS2 attempt).
+                        if (carRejected && result is CommandResult.Success) {
+                            v1ControlVehicles.add(vehicleId)
+                            diag("control/door: v1 control works for this car — using v1 for future commands.")
+                        }
+                        result
                     } else {
                         diag("✗ control/door $action (v1) → HTTP ${v1.status.value} but body says failure$msgTail | body: ${outcome.snippet}")
                         val reason = outcome.resMsg?.takeIf { it.isNotBlank() }
@@ -810,10 +882,22 @@ class EuBlueLinkClient(
 
     override suspend fun clearSession() = secureStore.clear()
 
-    override suspend fun resetDeviceRegistration() {
-        val old = secureStore.loadDeviceId()
-        secureStore.clearDeviceId()
-        diag("device registration reset (old=${old?.take(8) ?: "none"}…) — will re-register on next call")
+    override suspend fun resetDeviceRegistration(): CommandResult {
+        if (!ensureFreshSession()) return CommandResult.NotAuthenticated
+        return try {
+            val old = secureStore.loadDeviceId()
+            secureStore.clearDeviceId()
+            diag("device: cleared old registration (${old?.take(8) ?: "none"}…)")
+            val newId = ensureDeviceRegistered()
+            diag("device: registered new id ${newId.take(8)}… — testing")
+            // Test the fresh id with an auth-only call that never wakes the car.
+            val vehicles = vehicles()
+            diag("device: test OK — ${vehicles.size} vehicle(s) reachable")
+            CommandResult.Success("New device registered (…${newId.takeLast(6)}) — ${vehicles.size} vehicle(s) reachable.")
+        } catch (t: Throwable) {
+            Log.w(TAG, "device re-registration failed: ${t.message}")
+            CommandResult.Failure("Device re-registration failed: ${t.message}")
+        }
     }
 
     /**

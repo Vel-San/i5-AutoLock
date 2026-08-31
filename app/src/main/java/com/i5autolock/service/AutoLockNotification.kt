@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.i5autolock.AutoLockApp
 import com.i5autolock.MainActivity
@@ -15,6 +16,34 @@ import com.i5autolock.domain.detection.DetectionState
 object AutoLockNotification {
 
     const val NOTIFICATION_ID = 4201
+    const val DEPARTURE_ID = 4202
+
+    /**
+     * One-shot dismissible "departure summary" posted after a lock attempt completes
+     * (e.g. "Locked ✓ · 72% · doors closed · Parked near Main St"). Safe no-op if notifications
+     * aren't permitted.
+     */
+    fun postDeparture(context: Context, title: String, text: String) {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(context, AutoLockApp.CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_autolock)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(contentIntent)
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(DEPARTURE_ID, notification) }
+    }
 
     /** Persistent "watching" notification shown whenever AutoLock is enabled. */
     fun buildWatching(

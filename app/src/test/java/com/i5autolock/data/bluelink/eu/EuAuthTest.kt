@@ -8,23 +8,19 @@ class EuAuthTest {
 
     @Test
     fun extractsCodeFromFullRedirectUrl() {
-        val url = "https://prd.eu-ccapi.hyundai.com:8080/api/v1/user/oauth2/redirect?code=ABC123&state=ccsp"
-        assertEquals("ABC123", EuAuth.extractAuthCodeLoose(url))
+        val url = "https://oneapp.hyundai.com/redirect?code=ABC123&state=ccsp"
+        assertEquals("ABC123", EuAuth.extractAuthCode(url))
     }
 
     @Test
-    fun extractsCodeFromQueryFragment() {
-        assertEquals("XYZ789", EuAuth.extractAuthCodeLoose("code=XYZ789&foo=bar"))
+    fun extractsCodeWhenNotFirstParam() {
+        val url = "https://oneapp.hyundai.com/redirect?state=ccsp&code=XYZ789"
+        assertEquals("XYZ789", EuAuth.extractAuthCode(url))
     }
 
     @Test
-    fun acceptsBareCode() {
-        assertEquals("TOKEN-42", EuAuth.extractAuthCodeLoose("  TOKEN-42  "))
-    }
-
-    @Test
-    fun rejectsGarbage() {
-        assertNull(EuAuth.extractAuthCodeLoose(""))
-        assertNull(EuAuth.extractAuthCodeLoose("just some words here"))
+    fun returnsNullWhenNoCode() {
+        assertNull(EuAuth.extractAuthCode("https://oneapp.hyundai.com/redirect?error=access_denied"))
+        assertNull(EuAuth.extractAuthCode("https://oneapp.hyundai.com/redirect"))
     }
 }

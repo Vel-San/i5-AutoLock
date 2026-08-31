@@ -54,11 +54,11 @@ interface BlueLinkClient {
     suspend fun clearSession()
 
     /**
-     * Force the client to re-register its CCSP device id on the next call. Useful when Hyundai's
-     * backend rejects commands with "Please check your vehicle status" — a stale/revoked device id
-     * on the account can silently cause every remote command to fail. Default: no-op.
+     * Clear the CCSP device id and register a fresh one, then verify it works. Useful when Hyundai
+     * rejects commands with "Please check your vehicle status" — a stale/throttled device id can
+     * silently block every remote command. Default: no-op success.
      */
-    suspend fun resetDeviceRegistration() {}
+    suspend fun resetDeviceRegistration(): CommandResult = CommandResult.Success("Nothing to reset for this region.")
 
     /**
      * Probes the three key EU endpoints in order and returns a multi-line human-readable report.

@@ -22,5 +22,6 @@ class UnsupportedRegionClient(override val region: Region) : BlueLinkClient {
         throw UnsupportedOperationException(message)
     override suspend fun lock(vehicleId: String) = CommandResult.Failure(message)
     override suspend fun unlock(vehicleId: String) = CommandResult.Failure(message)
+    override suspend fun resetDeviceRegistration() = CommandResult.Failure(message)
     override suspend fun clearSession() {}
 }

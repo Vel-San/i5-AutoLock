@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.i5autolock.data.backup.BackupManager
 import com.i5autolock.data.bluelink.BlueLinkProvider
 import com.i5autolock.data.bluelink.Region
+import com.i5autolock.data.bluelink.model.CommandResult
 import com.i5autolock.data.bluelink.model.Vehicle
 import com.i5autolock.data.device.BluetoothDevices
 import com.i5autolock.data.device.PairedDevice
@@ -35,6 +36,7 @@ data class SettingsUiExtras(
     val vehicles: List<Vehicle> = emptyList(),
     val loadingVehicles: Boolean = false,
     val signedIn: Boolean = false,
+    val resettingDevice: Boolean = false,
 )
 
 @HiltViewModel
@@ -122,6 +124,7 @@ class SettingsViewModel @Inject constructor(
     fun setLowVoltageAlert(enabled: Boolean) = update { it.copy(lowVoltageAlert = enabled) }
     fun setLowVoltageThreshold(percent: Int) = update { it.copy(lowVoltageThreshold = percent.coerceIn(5, 100)) }
     fun setMinRefreshSeconds(seconds: Int) = update { it.copy(minRefreshSeconds = seconds.coerceIn(15, 600)) }
+    fun setLiveWakeRefresh(v: Boolean) = update { it.copy(liveWakeRefresh = v) }
     fun setShowAppBadge(enabled: Boolean) = viewModelScope.launch {
         settingsRepo.update { it.copy(showAppBadge = enabled) }
         // Badge visibility is a channel property — recreate it, then re-post the watching
@@ -152,6 +155,11 @@ class SettingsViewModel @Inject constructor(
     fun setUseGeofence(v: Boolean) = update { it.copy(useGeofence = v) }
     fun setGeofenceRadius(m: Int) = update { it.copy(geofenceRadiusMeters = m) }
     fun setRequireConfirmation(v: Boolean) = update { it.copy(requireConfirmationBeforeLock = v) }
+    fun setRequireWalkAway(v: Boolean) = update { it.copy(requireWalkAwayConfirmation = v) }
+    fun setVerifyLock(v: Boolean) = update { it.copy(verifyLock = v) }
+    fun setDontLockIfOpen(v: Boolean) = update { it.copy(dontLockIfOpen = v) }
+    fun setRetryWindowMinutes(v: Int) = update { it.copy(retryWindowMinutes = v) }
+    fun setDepartureSummary(v: Boolean) = update { it.copy(departureSummary = v) }
 
     fun selectCarDevice(device: PairedDevice) =
         update { it.copy(carBluetoothMac = device.mac, carBluetoothName = device.name) }
@@ -188,16 +196,23 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Clears the stored CCSP device id so the next command re-registers with Hyundai. Useful when
-     * commands are rejected with "Please check your vehicle status" — a stale device registration
-     * on the account can silently block every remote command.
+     * Resets the CCSP device id, registers a fresh one and verifies it — a one-tap fix for when
+     * commands are rejected with "Please check your vehicle status" (a stale/throttled device id).
      */
     fun resetDeviceRegistration() = viewModelScope.launch {
+        _extras.value = _extras.value.copy(resettingDevice = true)
+        log.add(LogLevel.INFO, appContext.getString(com.i5autolock.R.string.reset_device_running))
         val s = settingsRepo.settings.first()
-        withContext(Dispatchers.IO) { provider.client(s).resetDeviceRegistration() }
-        val msg = appContext.getString(com.i5autolock.R.string.reset_device_done)
+        val result = withContext(Dispatchers.IO) { provider.client(s).resetDeviceRegistration() }
+        val msg = when (result) {
+            is CommandResult.Success -> result.message
+            is CommandResult.Failure -> result.reason
+            CommandResult.NotAuthenticated -> appContext.getString(com.i5autolock.R.string.check_creds_no_session)
+            CommandResult.RateLimited -> appContext.getString(com.i5autolock.R.string.reset_device_rate_limited)
+        }
         _notice.value = msg
-        log.add(LogLevel.INFO, msg)
+        log.add(if (result is CommandResult.Success) LogLevel.SUCCESS else LogLevel.WARN, msg)
+        _extras.value = _extras.value.copy(resettingDevice = false)
     }
 
     /** Verifies the current EU session by hitting the vehicles endpoint. Reports via _notice + log. */

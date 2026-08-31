@@ -162,7 +162,6 @@ fun HelpScreen(onBack: () -> Unit) {
                     stringResource(R.string.help_signin_1_t) to stringResource(R.string.help_signin_1_d),
                     stringResource(R.string.help_signin_2_t) to stringResource(R.string.help_signin_2_d),
                     stringResource(R.string.help_signin_3_t) to stringResource(R.string.help_signin_3_d),
-                    stringResource(R.string.help_signin_4_t) to stringResource(R.string.help_signin_4_d),
                     stringResource(R.string.help_signin_5_t) to stringResource(R.string.help_signin_5_d),
                     stringResource(R.string.help_signin_6_t) to stringResource(R.string.help_signin_6_d),
                 ),

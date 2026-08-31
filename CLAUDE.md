@@ -590,6 +590,98 @@ The **CCS token** is then used as a Bearer against the existing CCSP API
   `network_security_config.xml`. Vehicle status, lock/unlock, control-token, device registration,
   diagnostics and the msgId polling are unchanged — they still run on the CCS token against ccapi:8080.
   Tests/lint/assembleDebug green.
+- Round 22 (dead-code cleanup after the login rewrite): removed now-unused `RegionConfig` fields left
+  over from the OAuth era — `userApiBaseUrl`, `clientSecret`, `basicAuth`, `redirectUri`,
+  `appRedirectScheme`, `idpRedirectUri` (login uses `oneApp*`/`cci*`; vehicle calls use `clientId` as
+  `ccsp-service-id` + `Stamp`). Dropped the unused `Region.requiresOauthLogin` enum property, the
+  production-dead `EuAuth.extractAuthCodeLoose` (rewrote `EuAuthTest` to cover the still-used
+  `extractAuthCode`), and three dead imports in `EuBlueLinkClient` (`FormDataContent`,
+  `io.ktor.http.parameters`, `jsonArray`). Pruned dead strings across all 5 locales
+  (`login_title_hyundai`, `login_browser_hint`/`_button`, `login_webview_progress`, the
+  `help_signin_4` "Advanced: refresh token" entry + its HelpScreen row) and corrected `login_intro` /
+  `login_password` wording (no more "refresh token" / "48-char"). Tests/lint/assembleDebug green.
+- Round 23 (reliability + QoL features): one-tap **device re-registration** and a batch of lock-
+  reliability features.
+  - `BlueLinkClient.resetDeviceRegistration()` now returns `CommandResult` and (EU) does the full
+    **reset → register fresh id → verify** (clears deviceId, re-registers via notifications/register,
+    then tests with an auth-only `vehicles()` call). Settings → Account button shows a spinner
+    (`SettingsUiExtras.resettingDevice`) and reports the new id + reachable-vehicle count.
+  - **#3/#4 door + window open guard:** `VehicleStatus` gained `anyWindowOpen` (+ `isOpenSomewhere`);
+    CCS2 parser reads `Cabin.Window` (best-effort, null if absent). `LockPolicy.decide(status,
+    dontLockIfOpen)` skips with "A door/window is open" when the guard is on (`AppSettings.dontLockIfOpen`,
+    default on). The car can't lock with something open anyway, so we skip + explain instead of a false fail.
+  - **#1 verified lock:** after a successful lock, if `verifyLock` (default on) re-reads cached status
+    and sends one more lock if the car still shows unlocked.
+  - **#2/#6 retry window + auto re-register:** `performLock` retries retriable failures (RateLimited /
+    Failure, incl. 5031 / "didn't confirm") with exponential backoff up to `retryWindowMinutes`
+    (0 = off); the **first retry re-registers the device** (stale/throttled id is the common cause).
+  - **#5 require walk-away confirmation:** `requireWalkAwayConfirmation` (default off) — only lock if
+    Activity Recognition or the geofence confirms you left; otherwise skip instead of locking on the
+    Bluetooth disconnect alone. Controller tracks `walkAwayConfirmed`.
+  - **#8 departure summary:** `AutoLockNotification.postDeparture` posts a one-shot dismissible summary
+    after each attempt ("Car secured · Locked ✓ · 72% · doors closed · Parked near …"), gated by
+    `departureSummary` (default on).
+  - **#7 widget last-locked:** `StatusCache` persists `lastLockedAtEpochMs`; the widget shows
+    "Locked · 5m ago".
+  - New Settings "Lock reliability" section + a walk-away toggle in Detection; setters in
+    `SettingsViewModel`; DataStore keys in `SettingsRepository`; strings in all 5 locales;
+    `LockPolicyTest` covers the open-guard. Tests/lint/assembleDebug green.
+- Round 24 (the "5031" wake 503 — cached-first refresh): the recurring
+  `503 {"resCode":"5031","resMsg":"Unavailable remote control - Service Temporary Unavailable"}` on
+  `GET /ccs2/carstatus` (the live **wake**) is **Hyundai server-side and has no client fix** —
+  confirmed by `hyundai_kia_connect_api` #1280 + `kia_uvo` #1774 (a transient backend refusal; the
+  maintainer's guidance is "retry", and one permanently-5031 vehicle shouldn't break others). Crucially,
+  `hyundai_kia_connect_api`'s **normal** `update_vehicle_with_cached_state` only reads the cached
+  `/ccs2/carstatus/latest` snapshot and **never wakes**; waking is a separate, rarely-used force op.
+  Our app was waking on every manual refresh, so it hit the 503 every time even though the cached
+  fallback already returned good data (battery/range/lock all parsed). Fix: **default refresh to the
+  cached snapshot** and make waking opt-in. Added `AppSettings.liveWakeRefresh` (default **off**);
+  `EuBlueLinkClient.status(forceRefresh)` only wakes when `forceRefresh && liveWakeRefresh` (and the
+  cooldown elapsed) — otherwise it reads `carstatus/latest` (reliable 200, no 503). `triggerCcs2Wake`
+  now logs an expected 5031/503 softly ("wake: car busy … using cached snapshot") instead of a scary
+  `✗` failure line, and skips the 25 s wait. New Settings → Timing "Live refresh (wake the car)" toggle
+  (+ hint explaining the 503 is normal), setter, DataStore key, strings in all 5 locales. The auto-lock
+  pre-lock check + verify already used cached reads, so they were unaffected. Net: normal syncs are now
+  fast, reliable, and 503-free; users who want a true live poll can opt in and accept the occasional
+  server-side 5031. Tests/lint/assembleDebug green.
+- Round 25 (CCS2 lock state was inverted — showed Unlocked while locked): the car showed UNLOCKED on
+  refresh even though it was locked (battery/range were correct). Root cause: the CCS2 door `Lock`
+  field is an **UNLOCKED flag** — `0 = locked, 1 = unlocked` — confirmed by `hyundai_kia_connect_api`'s
+  `_update_vehicle_properties_ccs2` (`front_left_door_is_locked = not bool(Cabin.Door.Row1.Driver.Lock)`).
+  Our `parseCcs2Status` had it backwards (`1 → LOCKED, 0 → UNLOCKED`) and read only the driver door.
+  Fixed: map `Lock == 0` → locked, and derive the car's lock from **all** reporting doors
+  (`is_locked = all doors locked`; any door reporting unlocked → UNLOCKED; none reporting → UNKNOWN),
+  matching the reference's `fl AND fr AND bl AND br`. The door/window **`Open`** fields are used
+  directly (not inverted) in the reference, so those were already correct — no change. Legacy v1
+  `doorLock` is a real boolean (true=locked), also unaffected. Diag log now prints the raw per-door
+  lock array (`doorLocks(0=locked)=[…]`) for future verification. Tests/lint/assembleDebug green.
+- Round 26 (lock/unlock rejected "check your vehicle status" — v1 control fallback): CCS2 control was
+  `retCode=S` queued then the car reported `result:"fail" "[Fail] Cannot unlock door. Please check your
+  vehicle status."` ~200 ms later (backend pre-check, car never contacted), while myHyundai worked.
+  Root cause: `hyundai_kia_connect_api` picks the control protocol by `ccu_ccs2_protocol_support`, and
+  this Ioniq 5's vehicle list reports **`ccuCCS2ProtocolSupport=0`** — so the reference would use the
+  **legacy v1 control** (`POST /api/v1/spa/vehicles/{id}/control/door` `{action, deviceId}`), NOT the
+  CCS2 v2 path. We were forcing CCS2 control because CCS2 *status* works — but some Ioniq 5s report CCS2
+  status yet need v1 control. Fix: (1) added the `AuthorizationCCSP` header (control token in BOTH
+  `Authorization` + `AuthorizationCCSP`, matching the reference's `_get_control_headers`); (2) when a
+  CCS2 control command is **car-rejected** (poll `result:fail`), `sendDoorCommand` now **falls back to
+  the v1 control path** (safe — the CCS2 command was rejected, not executed) instead of giving up;
+  (3) an in-memory `v1ControlVehicles` set remembers a car that needed v1 (learned when v1 succeeds
+  after CCS2 rejection) so the wasted CCS2 attempt is skipped for the rest of the session. PENDING/
+  timeout and submission-`retCode=F`/429/401 still return as-is (no v1 fallback). Extracted
+  `actionFailureReason(check, action)` shared by both paths. Status reads stay on CCS2 (unchanged).
+  Tests/lint/assembleDebug green.
+- Round 27 (v1 legacy control got 403 "disallowed" — correct legacy headers): the Round-26 v1 fallback
+  failed with `403 { "error": "Access to this API has been disallowed" }` because it reused the CCS2
+  headers — `ccuCCS2ProtocolSupport=1` + the control token in `Authorization`/`AuthorizationCCSP`. The
+  reference's **legacy** `lock_action` uses `_get_authenticated_headers`: the **access token** (not a
+  control token), **no `AuthorizationCCSP`**, and the vehicle's real protocol flag (**`0`** for this
+  car). Sending `=1` on the v1 endpoint makes the backend disallow it. Fix: `baseHeaders(builder,
+  ccs2: Boolean = true)` now emits `ccuCCS2ProtocolSupport` as `1` (CCS2) or `0` (legacy); the v1
+  control POST calls `baseHeaders(this, ccs2 = false)` with `Authorization = authHeader()` (CCS access
+  token) and no `AuthorizationCCSP`/control token, `{action, deviceId}` body — matching the reference
+  exactly. So a flag-0 Ioniq 5 whose CCS2 control is car-rejected now retries v1 with headers the
+  legacy endpoint accepts. Tests/lint/assembleDebug green.
 
 
 

@@ -61,6 +61,9 @@ data class AppSettings(
     val autoRefreshIntervalMinutes: Int = 0,
     // Minimum seconds between LIVE vehicle polls (forced refresh wakes the car; too often = 503).
     val minRefreshSeconds: Int = 180,
+    // Wake the car on a manual refresh (live poll). Default off: refreshes read the reliable cached
+    // snapshot instead, avoiding Hyundai's transient 503 "5031 Unavailable remote control".
+    val liveWakeRefresh: Boolean = false,
     val hapticOnLock: Boolean = true,
     val soundOnLock: Boolean = false,
     // Optional custom lock sound (content URI). Null = the built-in EV chime.
@@ -97,6 +100,19 @@ data class AppSettings(
     val useActivityRecognition: Boolean = true,
     val useGeofence: Boolean = false,
     val geofenceRadiusMeters: Int = 25,
+    // Only lock if a walk-away signal (Activity Recognition or geofence) confirms you left;
+    // otherwise abort instead of proceeding on the Bluetooth disconnect alone.
+    val requireWalkAwayConfirmation: Boolean = false,
+
+    // Lock reliability.
+    // After locking, re-read the status and re-send once if the car still reports unlocked.
+    val verifyLock: Boolean = true,
+    // Don't send a lock while a door or window is open (the car can't lock anyway) — warn instead.
+    val dontLockIfOpen: Boolean = true,
+    // Keep retrying a failed lock (car asleep / temporary 503) for this many minutes (0 = off).
+    val retryWindowMinutes: Int = 0,
+    // Post a one-shot "departure summary" notification after a lock attempt completes.
+    val departureSummary: Boolean = true,
 
     // The paired car Bluetooth device that signals "in the car".
     val carBluetoothMac: String? = null,

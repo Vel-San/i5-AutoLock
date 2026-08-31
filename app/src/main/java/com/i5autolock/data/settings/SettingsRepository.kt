@@ -38,6 +38,7 @@ class SettingsRepository @Inject constructor(
         val AUTO_REFRESH_OPEN = booleanPreferencesKey("auto_refresh_open")
         val AUTO_REFRESH_INTERVAL = intPreferencesKey("auto_refresh_interval")
         val MIN_REFRESH_SECONDS = intPreferencesKey("min_refresh_seconds")
+        val LIVE_WAKE_REFRESH = booleanPreferencesKey("live_wake_refresh")
         val CUSTOM_SOUND_URI = stringPreferencesKey("custom_sound_uri")
         val LOW_VOLT_ALERT = booleanPreferencesKey("low_volt_alert")
         val LOW_VOLT_THRESHOLD = intPreferencesKey("low_volt_threshold")
@@ -65,6 +66,11 @@ class SettingsRepository @Inject constructor(
         val ACCOUNT_EMAIL = stringPreferencesKey("account_email")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val REQUIRE_CONFIRM = booleanPreferencesKey("require_confirm")
+        val REQUIRE_WALKAWAY = booleanPreferencesKey("require_walkaway")
+        val VERIFY_LOCK = booleanPreferencesKey("verify_lock")
+        val DONT_LOCK_IF_OPEN = booleanPreferencesKey("dont_lock_if_open")
+        val RETRY_WINDOW_MIN = intPreferencesKey("retry_window_min")
+        val DEPARTURE_SUMMARY = booleanPreferencesKey("departure_summary")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { it.toSettings() }
@@ -88,6 +94,7 @@ class SettingsRepository @Inject constructor(
         // Old builds stored this as a 3–30s manual-refresh guard; it now governs LIVE polls, so
         // migrate too-low values up to the safe default to avoid Hyundai's 503 rate limit.
         minRefreshSeconds = this[Keys.MIN_REFRESH_SECONDS]?.takeIf { it >= 15 }?.coerceAtMost(600) ?: 180,
+        liveWakeRefresh = this[Keys.LIVE_WAKE_REFRESH] ?: false,
         customLockSoundUri = this[Keys.CUSTOM_SOUND_URI],
         lowVoltageAlert = this[Keys.LOW_VOLT_ALERT] ?: true,
         lowVoltageThreshold = this[Keys.LOW_VOLT_THRESHOLD] ?: 40,
@@ -122,6 +129,11 @@ class SettingsRepository @Inject constructor(
         accountEmail = this[Keys.ACCOUNT_EMAIL],
         onboardingComplete = this[Keys.ONBOARDING_DONE] ?: false,
         requireConfirmationBeforeLock = this[Keys.REQUIRE_CONFIRM] ?: false,
+        requireWalkAwayConfirmation = this[Keys.REQUIRE_WALKAWAY] ?: false,
+        verifyLock = this[Keys.VERIFY_LOCK] ?: true,
+        dontLockIfOpen = this[Keys.DONT_LOCK_IF_OPEN] ?: true,
+        retryWindowMinutes = this[Keys.RETRY_WINDOW_MIN] ?: 0,
+        departureSummary = this[Keys.DEPARTURE_SUMMARY] ?: true,
     )
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
@@ -140,6 +152,7 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.AUTO_REFRESH_OPEN] = next.autoRefreshOnOpen
             prefs[Keys.AUTO_REFRESH_INTERVAL] = next.autoRefreshIntervalMinutes
             prefs[Keys.MIN_REFRESH_SECONDS] = next.minRefreshSeconds
+            prefs[Keys.LIVE_WAKE_REFRESH] = next.liveWakeRefresh
             next.customLockSoundUri?.let { prefs[Keys.CUSTOM_SOUND_URI] = it } ?: prefs.remove(Keys.CUSTOM_SOUND_URI)
             prefs[Keys.LOW_VOLT_ALERT] = next.lowVoltageAlert
             prefs[Keys.LOW_VOLT_THRESHOLD] = next.lowVoltageThreshold
@@ -169,6 +182,11 @@ class SettingsRepository @Inject constructor(
             next.accountEmail?.let { prefs[Keys.ACCOUNT_EMAIL] = it } ?: prefs.remove(Keys.ACCOUNT_EMAIL)
             prefs[Keys.ONBOARDING_DONE] = next.onboardingComplete
             prefs[Keys.REQUIRE_CONFIRM] = next.requireConfirmationBeforeLock
+            prefs[Keys.REQUIRE_WALKAWAY] = next.requireWalkAwayConfirmation
+            prefs[Keys.VERIFY_LOCK] = next.verifyLock
+            prefs[Keys.DONT_LOCK_IF_OPEN] = next.dontLockIfOpen
+            prefs[Keys.RETRY_WINDOW_MIN] = next.retryWindowMinutes
+            prefs[Keys.DEPARTURE_SUMMARY] = next.departureSummary
         }
     }
 }

@@ -11,10 +11,12 @@ sealed interface LockDecision {
 
 /** Pure policy: should we attempt to lock, given this status? */
 object LockPolicy {
-    fun decide(status: VehicleStatus): LockDecision = when {
+    fun decide(status: VehicleStatus, dontLockIfOpen: Boolean = false): LockDecision = when {
         status.lockState == LockState.LOCKED -> LockDecision.Skip("Already locked")
         status.lockState == LockState.UNKNOWN -> LockDecision.Skip("Lock state unknown")
         status.engineRunning -> LockDecision.Skip("Engine running")
+        dontLockIfOpen && status.anyDoorOpen == true -> LockDecision.Skip("A door is open")
+        dontLockIfOpen && status.anyWindowOpen == true -> LockDecision.Skip("A window is open")
         else -> LockDecision.Lock
     }
 }

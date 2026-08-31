@@ -11,23 +11,14 @@ data class RegionConfig(
     val region: Region,
     val brand: Brand,
     val apiBaseUrl: String,
-    val userApiBaseUrl: String,
+    /** CCSP service id sent as `ccsp-service-id` on every ccapi:8080 request (the legacy id). */
     val clientId: String,
-    val clientSecret: String?,
     /** Base64 "cfb" seed used to derive the anti-tamper Stamp (EU). */
     val stampCfb: String?,
     val appId: String?,
-    /** Pre-computed HTTP Basic auth header value ("Basic base64(clientId:secret)") for token calls. */
-    val basicAuth: String? = null,
-    /** Redirect the OAuth flow lands on; we intercept this. */
-    val redirectUri: String,
-    /** Custom scheme deep link the app registers to catch the redirect. */
-    val appRedirectScheme: String = "i5autolock://oauth",
-    // IDP (idpconnect) — headless email+password login that avoids reCAPTCHA.
+    // IDP (idpconnect) host for the OneApp/CCI login.
     val idpBaseUrl: String? = null,
-    /** redirect_uri used across the IDP authorize/signin/token calls. */
-    val idpRedirectUri: String? = null,
-    /** Mobile UA the official app sends to the IDP. */
+    /** Mobile UA the OneApp login sends to the IDP authorize/signin. */
     val mobileUserAgent: String = MOBILE_UA,
     // ── OneApp / CCI login (EU Hyundai/Kia) ──────────────────────────────────────────────
     // Since 2026-08-11 Hyundai's WAF blocks the legacy login client_id ([clientId] with the
@@ -57,15 +48,10 @@ data class RegionConfig(
             region = Region.EU,
             brand = Brand.HYUNDAI,
             apiBaseUrl = "https://prd.eu-ccapi.hyundai.com:8080",
-            userApiBaseUrl = "https://prd.eu-ccapi.hyundai.com:8080/api/v1/user",
             clientId = "6d477c38-3ca4-4cf3-9557-2a1929a94654",
-            clientSecret = "KUy49XxPzLpLuoK0xhBC77W6VXhmtQR9iQhmIFjjoY4IpxsV",
             stampCfb = "RFtoRq/vDXJmRndoZaZQyfOot7OrIqGVFj96iY2WL3yyH5Z/pUvlUhqmCxD2t+D65SQ=",
             appId = "014d2225-8495-4735-812d-2616334fd15d",
-            basicAuth = "Basic NmQ0NzdjMzgtM2NhNC00Y2YzLTk1NTctMmExOTI5YTk0NjU0OktVeTQ5WHhQekxwTHVvSzB4aEJDNzdXNlZYaG10UVI5aVFobUlGampvWTRJcHhzVg==",
-            redirectUri = "https://prd.eu-ccapi.hyundai.com:8080/api/v1/user/oauth2/redirect",
             idpBaseUrl = "https://idpconnect-eu.hyundai.com",
-            idpRedirectUri = "https://prd.eu-ccapi.hyundai.com:8080/api/v1/user/oauth2/token",
             // OneApp/CCI login (WAF bypass). These are public reverse-engineered app constants.
             oneAppClientId = "4f4953b5-02e1-4dbc-8599-87e983ee1be5",
             oneAppRedirectUri = "https://oneapp.hyundai.com/redirect",

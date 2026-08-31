@@ -175,6 +175,7 @@ data class Ccs2Vehicle(
 @Serializable
 data class Ccs2Cabin(
     @SerialName("Door") val door: Ccs2Door? = null,
+    @SerialName("Window") val window: Ccs2Door? = null,
     @SerialName("HVAC") val hvac: Ccs2Hvac? = null,
 )
 

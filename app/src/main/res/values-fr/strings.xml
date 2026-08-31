@@ -174,6 +174,31 @@
     <string name="set_reset_device">Réinitialiser l\'enregistrement de l\'appareil</string>
     <string name="set_reset_device_hint">Si les commandes échouent avec « Vérifiez l\'état du véhicule », appuyez ici pour effacer l\'ID d\'appareil CCSP stocké et le ré-enregistrer au prochain appel. Ne vous déconnecte pas.</string>
     <string name="reset_device_done">Enregistrement de l\'appareil effacé — il sera renouvelé au prochain verrouillage/déverrouillage.</string>
+    <string name="reset_device_running">Réinitialisation de l\'enregistrement de l\'appareil…</string>
+    <string name="reset_device_rate_limited">Limite atteinte — attendez une minute et réessayez.</string>
+    <string name="set_live_wake_title">Actualisation en direct (réveiller la voiture)</string>
+    <string name="set_live_wake_sub">Désactivé : l\'actualisation lit l\'instantané en cache fiable (pas de 503). Activé : interroge aussi la voiture en direct — Hyundai répond souvent « 503 Unavailable remote control », ce qui est normal et bascule sur le cache.</string>
+    <!-- Departure summary -->
+    <string name="departure_title_locked">Voiture sécurisée</string>
+    <string name="departure_title_skipped">AutoLock</string>
+    <string name="departure_locked">Verrouillée ✓</string>
+    <string name="departure_not_locked">Non verrouillée</string>
+    <string name="departure_open">porte/fenêtre ouverte</string>
+    <string name="departure_closed">portes fermées</string>
+    <string name="departure_parked">Garée près de %s</string>
+    <!-- Lock reliability settings -->
+    <string name="sec_reliability">Fiabilité du verrouillage</string>
+    <string name="set_require_walkaway_title">Exiger une confirmation d\'éloignement</string>
+    <string name="set_require_walkaway_sub">Ne verrouiller que si l\'activité ou la zone géographique confirme que vous vous êtes éloigné ; sinon ignorer.</string>
+    <string name="set_verify_lock_title">Vérifier le verrouillage</string>
+    <string name="set_verify_lock_sub">Après le verrouillage, revérifier et renvoyer un verrouillage si la voiture est encore ouverte.</string>
+    <string name="set_dont_lock_open_title">Ne pas verrouiller si ouvert</string>
+    <string name="set_dont_lock_open_sub">Ignorer le verrouillage quand une porte ou une fenêtre est ouverte et en expliquer la raison.</string>
+    <string name="set_departure_title">Résumé de départ</string>
+    <string name="set_departure_sub">Afficher un résumé unique après chaque tentative de verrouillage (verrouillage, batterie, portes, stationnement).</string>
+    <string name="set_retry_window_off">Continuer à réessayer un verrouillage échoué : Désactivé</string>
+    <string name="set_retry_window_value">Continuer à réessayer un verrouillage échoué : %d min</string>
+    <string name="set_retry_window_sub">Si la voiture dort/est injoignable, continuer à réessayer avec délai pendant cette durée.</string>
     <string name="diagnose_no_vehicle">Choisissez d\'abord un véhicule, puis lancez le diagnostic.</string>
     <string name="diagnose_title">Diagnostic de l\'API</string>
     <string name="action_close">Fermer</string>
@@ -274,19 +299,15 @@
     <string name="schedule_until">Jusqu\'à %1$s</string>
 
     <!-- Login -->
-    <string name="login_title_hyundai">Se connecter sur Hyundai</string>
     <string name="login_title_bluelink">Se connecter à BlueLink</string>
     <string name="login_copy_log">Copier le journal</string>
     <string name="login_clear">Effacer</string>
-    <string name="login_intro">Connectez-vous avec votre compte Hyundai BlueLink. Le jeton d\'actualisation est généré sur votre appareil — rien n\'est partagé ailleurs.</string>
+    <string name="login_intro">Connectez-vous avec votre compte Hyundai BlueLink : e-mail, mot de passe et code PIN à 4 chiffres. La session est générée sur votre appareil ; rien n\'est partagé ailleurs.</string>
     <string name="login_email">E-mail BlueLink</string>
-    <string name="login_password">Mot de passe BlueLink (ou jeton d\'actualisation de 48 caractères)</string>
+    <string name="login_password">Mot de passe BlueLink</string>
     <string name="login_pin">Code PIN BlueLink (requis pour verrouiller)</string>
     <string name="login_sign_in">Se connecter</string>
-    <string name="login_browser_hint">Si la connexion ci-dessus échoue, essayez la page de connexion officielle de Hyundai dans l\'app :</string>
-    <string name="login_browser_button">Se connecter via le navigateur intégré</string>
     <string name="login_demo">Ignorer et utiliser le mode démo à la place</string>
-    <string name="login_webview_progress">Connexion sur la page de Hyundai…</string>
 
     <!-- Stats -->
     <string name="stats_title">Statistiques d\'API</string>
@@ -429,8 +450,6 @@
     <string name="help_signin_2_d">Hyundai/Kia exigent 8 à 20 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial. La connexion échoue si le mot de passe est hors de cette plage.</string>
     <string name="help_signin_3_t">« Connexion refusée »</string>
     <string name="help_signin_3_d">Vérifiez que l\'e-mail et le mot de passe fonctionnent dans l\'app officielle Hyundai, puis réessayez.</string>
-    <string name="help_signin_4_t">Avancé : jeton d\'actualisation</string>
-    <string name="help_signin_4_d">Si vous avez déjà généré ailleurs un jeton d\'actualisation de 48 caractères, collez-le plutôt sous « Avancé ».</string>
     <string name="help_signin_5_t">Aucun véhicule après connexion</string>
     <string name="help_signin_5_d">Touchez Recharger les véhicules dans Réglages → Compte.</string>
     <string name="help_signin_6_t">Vous préférez sans compte ?</string>

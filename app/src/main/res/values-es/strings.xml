@@ -174,6 +174,31 @@
     <string name="set_reset_device">Restablecer registro de dispositivo</string>
     <string name="set_reset_device_hint">Si los comandos fallan con “Revisa el estado del vehículo”, toca aquí para borrar el ID de dispositivo CCSP almacenado y volver a registrarlo en la próxima llamada. No cierra tu sesión.</string>
     <string name="reset_device_done">Registro de dispositivo borrado — se registrará de nuevo en el próximo bloqueo/desbloqueo.</string>
+    <string name="reset_device_running">Restableciendo el registro del dispositivo…</string>
+    <string name="reset_device_rate_limited">Límite de peticiones — espera un minuto e inténtalo de nuevo.</string>
+    <string name="set_live_wake_title">Actualización en vivo (despertar el coche)</string>
+    <string name="set_live_wake_sub">Desactivado: la actualización lee la instantánea en caché fiable (sin 503). Activado: además consulta al coche en vivo — Hyundai suele responder «503 Unavailable remote control», lo cual es normal y recurre a la caché.</string>
+    <!-- Departure summary -->
+    <string name="departure_title_locked">Coche asegurado</string>
+    <string name="departure_title_skipped">AutoLock</string>
+    <string name="departure_locked">Bloqueado ✓</string>
+    <string name="departure_not_locked">Sin bloquear</string>
+    <string name="departure_open">puerta/ventana abierta</string>
+    <string name="departure_closed">puertas cerradas</string>
+    <string name="departure_parked">Aparcado cerca de %s</string>
+    <!-- Lock reliability settings -->
+    <string name="sec_reliability">Fiabilidad del bloqueo</string>
+    <string name="set_require_walkaway_title">Requerir confirmación de alejamiento</string>
+    <string name="set_require_walkaway_sub">Bloquear solo si la actividad o la geoccerca confirman que te alejaste; si no, omitir.</string>
+    <string name="set_verify_lock_title">Verificar bloqueo</string>
+    <string name="set_verify_lock_sub">Tras bloquear, volver a comprobar y enviar un bloqueo más si el coche sigue abierto.</string>
+    <string name="set_dont_lock_open_title">No bloquear si está abierto</string>
+    <string name="set_dont_lock_open_sub">Omitir el bloqueo cuando una puerta o ventana está abierta y explicar por qué.</string>
+    <string name="set_departure_title">Resumen de salida</string>
+    <string name="set_departure_sub">Mostrar un resumen único tras cada intento de bloqueo (bloqueo, batería, puertas, aparcamiento).</string>
+    <string name="set_retry_window_off">Seguir reintentando un bloqueo fallido: Desactivado</string>
+    <string name="set_retry_window_value">Seguir reintentando un bloqueo fallido: %d min</string>
+    <string name="set_retry_window_sub">Si el coche está dormido/inaccesible, seguir reintentando con espera durante este tiempo.</string>
     <string name="diagnose_no_vehicle">Selecciona un vehículo primero y luego ejecuta el diagnóstico.</string>
     <string name="diagnose_title">Diagnóstico de API</string>
     <string name="action_close">Cerrar</string>
@@ -274,19 +299,15 @@
     <string name="schedule_until">Hasta %1$s</string>
 
     <!-- Login -->
-    <string name="login_title_hyundai">Iniciar sesión en Hyundai</string>
     <string name="login_title_bluelink">Iniciar sesión en BlueLink</string>
     <string name="login_copy_log">Copiar registro</string>
     <string name="login_clear">Borrar</string>
-    <string name="login_intro">Inicia sesión con tu cuenta de Hyundai BlueLink. El token de actualización se genera en tu dispositivo; no se comparte en ningún otro sitio.</string>
+    <string name="login_intro">Inicia sesión con tu cuenta de Hyundai BlueLink: correo, contraseña y PIN de 4 dígitos. La sesión se genera en tu dispositivo; no se comparte en ningún otro sitio.</string>
     <string name="login_email">Correo de BlueLink</string>
-    <string name="login_password">Contraseña de BlueLink (o token de 48 caracteres)</string>
+    <string name="login_password">Contraseña de BlueLink</string>
     <string name="login_pin">PIN de BlueLink (necesario para bloquear)</string>
     <string name="login_sign_in">Iniciar sesión</string>
-    <string name="login_browser_hint">Si falla el inicio de sesión de arriba, prueba la propia página de Hyundai dentro de la app:</string>
-    <string name="login_browser_button">Iniciar sesión con el navegador integrado</string>
     <string name="login_demo">Omitir y usar el modo Demo</string>
-    <string name="login_webview_progress">Iniciando sesión en la página de Hyundai…</string>
 
     <!-- Stats -->
     <string name="stats_title">Estadísticas de la API</string>
@@ -429,8 +450,6 @@
     <string name="help_signin_2_d">Hyundai/Kia requieren de 8 a 20 caracteres con una mayúscula, una minúscula, un dígito y un carácter especial. El inicio de sesión falla si la contraseña queda fuera de este rango.</string>
     <string name="help_signin_3_t">«Inicio de sesión rechazado»</string>
     <string name="help_signin_3_d">Comprueba que el correo y la contraseña funcionan en la app oficial de Hyundai y vuelve a intentarlo.</string>
-    <string name="help_signin_4_t">Avanzado: token de actualización</string>
-    <string name="help_signin_4_d">Si ya generaste en otro sitio un token de actualización de 48 caracteres, pégalo en «Avanzado».</string>
     <string name="help_signin_5_t">Sin vehículos tras iniciar sesión</string>
     <string name="help_signin_5_d">Toca Recargar vehículos en Ajustes → Cuenta.</string>
     <string name="help_signin_6_t">¿Prefieres sin cuenta?</string>

@@ -33,4 +33,18 @@ class LockPolicyTest {
         val decision = LockPolicy.decide(status(LockState.UNKNOWN))
         assertTrue(decision is LockDecision.Skip)
     }
+
+    @Test
+    fun skipsWhenDoorOpenAndGuardOn() {
+        val open = status(LockState.UNLOCKED).copy(anyDoorOpen = true)
+        assertTrue(LockPolicy.decide(open, dontLockIfOpen = true) is LockDecision.Skip)
+        // Guard off → still locks (Hyundai will reject, but policy doesn't block).
+        assertEquals(LockDecision.Lock, LockPolicy.decide(open, dontLockIfOpen = false))
+    }
+
+    @Test
+    fun skipsWhenWindowOpenAndGuardOn() {
+        val open = status(LockState.UNLOCKED).copy(anyWindowOpen = true)
+        assertTrue(LockPolicy.decide(open, dontLockIfOpen = true) is LockDecision.Skip)
+    }
 }

@@ -174,6 +174,31 @@
     <string name="set_reset_device">Reset device registration</string>
     <string name="set_reset_device_hint">If commands fail with “Please check your vehicle status”, tap this to clear the stored CCSP device id and re-register on the next call. Doesn’t sign you out.</string>
     <string name="reset_device_done">Device registration cleared — will re-register on the next lock/unlock.</string>
+    <string name="reset_device_running">Resetting device registration…</string>
+    <string name="reset_device_rate_limited">Rate-limited — wait a minute and try again.</string>
+    <string name="set_live_wake_title">Live refresh (wake the car)</string>
+    <string name="set_live_wake_sub">Off: refresh reads the reliable cached snapshot (no 503s). On: also pokes the car for a live reading — Hyundai often replies “503 Unavailable remote control”, which is normal and falls back to cached.</string>
+    <!-- Departure summary -->
+    <string name="departure_title_locked">Car secured</string>
+    <string name="departure_title_skipped">AutoLock</string>
+    <string name="departure_locked">Locked ✓</string>
+    <string name="departure_not_locked">Not locked</string>
+    <string name="departure_open">door/window open</string>
+    <string name="departure_closed">doors closed</string>
+    <string name="departure_parked">Parked near %s</string>
+    <!-- Lock reliability settings -->
+    <string name="sec_reliability">Lock reliability</string>
+    <string name="set_require_walkaway_title">Require walk-away confirmation</string>
+    <string name="set_require_walkaway_sub">Only lock if activity or the geofence confirms you walked away; otherwise skip.</string>
+    <string name="set_verify_lock_title">Verify lock</string>
+    <string name="set_verify_lock_sub">After locking, re-check and send one more lock if the car still shows unlocked.</string>
+    <string name="set_dont_lock_open_title">Don\'t lock if open</string>
+    <string name="set_dont_lock_open_sub">Skip locking when a door or window is open and tell you why.</string>
+    <string name="set_departure_title">Departure summary</string>
+    <string name="set_departure_sub">Post a one-time summary after each lock attempt (locked, battery, doors, parked spot).</string>
+    <string name="set_retry_window_off">Keep retrying a failed lock: Off</string>
+    <string name="set_retry_window_value">Keep retrying a failed lock: %d min</string>
+    <string name="set_retry_window_sub">If the car is asleep/unreachable, keep retrying with backoff for this long.</string>
     <string name="diagnose_no_vehicle">Pick a vehicle first, then run the diagnosis.</string>
     <string name="diagnose_title">API diagnosis</string>
     <string name="action_close">Close</string>
@@ -274,19 +299,15 @@
     <string name="schedule_until">Until %1$s</string>
 
     <!-- Login -->
-    <string name="login_title_hyundai">Sign in on Hyundai</string>
     <string name="login_title_bluelink">Sign in to BlueLink</string>
     <string name="login_copy_log">Copy log</string>
     <string name="login_clear">Clear</string>
-    <string name="login_intro">Sign in with your Hyundai BlueLink account. The refresh token is generated on your device — nothing is shared elsewhere.</string>
+    <string name="login_intro">Sign in with your Hyundai BlueLink account — email, password and 4-digit PIN. The session is generated on your device; nothing is shared elsewhere.</string>
     <string name="login_email">BlueLink email</string>
-    <string name="login_password">BlueLink password (or 48-char refresh token)</string>
+    <string name="login_password">BlueLink password</string>
     <string name="login_pin">BlueLink PIN (required to lock)</string>
     <string name="login_sign_in">Sign in</string>
-    <string name="login_browser_hint">If sign-in above fails, try Hyundai\'s own login page inside the app:</string>
-    <string name="login_browser_button">Sign in via in-app browser</string>
     <string name="login_demo">Skip and use Demo mode instead</string>
-    <string name="login_webview_progress">Signing in on Hyundai\'s page…</string>
 
     <!-- Stats -->
     <string name="stats_title">API statistics</string>
@@ -429,8 +450,6 @@
     <string name="help_signin_2_d">Hyundai/Kia require 8–20 characters with an uppercase letter, a lowercase letter, a digit, and a special character. Sign-in fails if the password is outside this range.</string>
     <string name="help_signin_3_t">\"Sign-in rejected\"</string>
     <string name="help_signin_3_d">Double-check the email and password work in the official Hyundai app, then try again.</string>
-    <string name="help_signin_4_t">Advanced: refresh token</string>
-    <string name="help_signin_4_d">If you already generated a 48-char refresh token elsewhere, paste it under \"Advanced\" instead.</string>
     <string name="help_signin_5_t">No vehicles after login</string>
     <string name="help_signin_5_d">Tap Reload vehicles in Settings → Account.</string>
     <string name="help_signin_6_t">Prefer no account?</string>

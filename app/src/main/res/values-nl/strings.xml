@@ -174,6 +174,31 @@
     <string name="set_reset_device">Apparaatregistratie resetten</string>
     <string name="set_reset_device_hint">Als opdrachten mislukken met “Controleer de voertuigstatus”, tik hier om de opgeslagen CCSP-apparaat-id te wissen en bij de volgende oproep opnieuw te registreren. Meldt je niet af.</string>
     <string name="reset_device_done">Apparaatregistratie gewist — wordt opnieuw geregistreerd bij de volgende vergrendeling/ontgrendeling.</string>
+    <string name="reset_device_running">Apparaatregistratie opnieuw instellen…</string>
+    <string name="reset_device_rate_limited">Snelheidslimiet — wacht een minuut en probeer opnieuw.</string>
+    <string name="set_live_wake_title">Live verversen (auto wekken)</string>
+    <string name="set_live_wake_sub">Uit: verversen leest de betrouwbare cache-momentopname (geen 503). Aan: pingt ook de auto voor een live meting — Hyundai antwoordt vaak “503 Unavailable remote control”, wat normaal is en terugvalt op de cache.</string>
+    <!-- Departure summary -->
+    <string name="departure_title_locked">Auto beveiligd</string>
+    <string name="departure_title_skipped">AutoLock</string>
+    <string name="departure_locked">Vergrendeld ✓</string>
+    <string name="departure_not_locked">Niet vergrendeld</string>
+    <string name="departure_open">deur/raam open</string>
+    <string name="departure_closed">deuren dicht</string>
+    <string name="departure_parked">Geparkeerd bij %s</string>
+    <!-- Lock reliability settings -->
+    <string name="sec_reliability">Vergrendelingsbetrouwbaarheid</string>
+    <string name="set_require_walkaway_title">Wegloop-bevestiging vereisen</string>
+    <string name="set_require_walkaway_sub">Alleen vergrendelen als activiteit of de geofence bevestigt dat je bent weggelopen; anders overslaan.</string>
+    <string name="set_verify_lock_title">Vergrendeling verifiëren</string>
+    <string name="set_verify_lock_sub">Na het vergrendelen opnieuw controleren en nog één keer vergrendelen als de auto nog open meldt.</string>
+    <string name="set_dont_lock_open_title">Niet vergrendelen indien open</string>
+    <string name="set_dont_lock_open_sub">Vergrendelen overslaan als een deur of raam open is en uitleggen waarom.</string>
+    <string name="set_departure_title">Vertreksamenvatting</string>
+    <string name="set_departure_sub">Toon een eenmalige samenvatting na elke vergrendelpoging (vergrendeld, accu, deuren, parkeerplek).</string>
+    <string name="set_retry_window_off">Mislukte vergrendeling blijven proberen: Uit</string>
+    <string name="set_retry_window_value">Mislukte vergrendeling blijven proberen: %d min</string>
+    <string name="set_retry_window_sub">Als de auto slaapt/onbereikbaar is, blijf zolang opnieuw proberen met vertraging.</string>
     <string name="diagnose_no_vehicle">Kies eerst een voertuig en voer daarna de diagnose uit.</string>
     <string name="diagnose_title">API-diagnose</string>
     <string name="action_close">Sluiten</string>
@@ -274,19 +299,15 @@
     <string name="schedule_until">Tot %1$s</string>
 
     <!-- Login -->
-    <string name="login_title_hyundai">Aanmelden bij Hyundai</string>
     <string name="login_title_bluelink">Aanmelden bij BlueLink</string>
     <string name="login_copy_log">Logboek kopiëren</string>
     <string name="login_clear">Wissen</string>
-    <string name="login_intro">Meld je aan met je Hyundai BlueLink-account. Het vernieuwingstoken wordt op je apparaat gegenereerd — niets wordt elders gedeeld.</string>
+    <string name="login_intro">Meld je aan met je Hyundai BlueLink-account — e-mail, wachtwoord en 4-cijferige pincode. De sessie wordt op je apparaat gegenereerd; niets wordt elders gedeeld.</string>
     <string name="login_email">BlueLink-e-mail</string>
-    <string name="login_password">BlueLink-wachtwoord (of 48-teken vernieuwingstoken)</string>
+    <string name="login_password">BlueLink-wachtwoord</string>
     <string name="login_pin">BlueLink-pincode (vereist om te vergrendelen)</string>
     <string name="login_sign_in">Aanmelden</string>
-    <string name="login_browser_hint">Als aanmelden hierboven mislukt, probeer dan Hyundais eigen inlogpagina in de app:</string>
-    <string name="login_browser_button">Aanmelden via in-app browser</string>
     <string name="login_demo">Overslaan en in plaats daarvan demomodus gebruiken</string>
-    <string name="login_webview_progress">Aanmelden op Hyundais pagina…</string>
 
     <!-- Stats -->
     <string name="stats_title">API-statistieken</string>
@@ -429,8 +450,6 @@
     <string name="help_signin_2_d">Hyundai/Kia vereisen 8–20 tekens met een hoofdletter, een kleine letter, een cijfer en een speciaal teken. Aanmelden mislukt als het wachtwoord buiten dit bereik valt.</string>
     <string name="help_signin_3_t">„Aanmelden geweigerd"</string>
     <string name="help_signin_3_d">Controleer of e-mail en wachtwoord werken in de officiële Hyundai-app en probeer het opnieuw.</string>
-    <string name="help_signin_4_t">Geavanceerd: vernieuwingstoken</string>
-    <string name="help_signin_4_d">Als je elders al een 48-teken vernieuwingstoken hebt gegenereerd, plak het dan onder „Geavanceerd".</string>
     <string name="help_signin_5_t">Geen voertuigen na aanmelden</string>
     <string name="help_signin_5_d">Tik op „Voertuigen opnieuw laden" onder Instellingen → Account.</string>
     <string name="help_signin_6_t">Liever geen account?</string>

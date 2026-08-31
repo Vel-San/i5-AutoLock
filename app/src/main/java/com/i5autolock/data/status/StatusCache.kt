@@ -36,6 +36,8 @@ data class CachedStatus(
     val anyDoorOpen: Boolean? = null,
     val climateOn: Boolean? = null,
     val batteryCharging: Boolean? = null,
+    /** When the car was last confirmed LOCKED (0 = never), for the widget's "locked X ago". */
+    val lastLockedAtEpochMs: Long = 0L,
 ) {
     /** Reconstruct a [VehicleStatus] from the cache, or null if nothing has been stored yet. */
     fun toVehicleStatus(): VehicleStatus? {
@@ -70,6 +72,7 @@ class StatusCache @Inject constructor(
         val DOOR = booleanPreferencesKey("any_door_open")
         val CLIMATE = booleanPreferencesKey("climate_on")
         val CHARGING = booleanPreferencesKey("battery_charging")
+        val LAST_LOCKED = longPreferencesKey("last_locked_at")
     }
 
     val cached: Flow<CachedStatus> = context.statusDataStore.data.map {
@@ -85,6 +88,7 @@ class StatusCache @Inject constructor(
             anyDoorOpen = it[Keys.DOOR],
             climateOn = it[Keys.CLIMATE],
             batteryCharging = it[Keys.CHARGING],
+            lastLockedAtEpochMs = it[Keys.LAST_LOCKED] ?: 0L,
         )
     }
 
@@ -112,6 +116,7 @@ class StatusCache @Inject constructor(
             status.anyDoorOpen?.let { v -> it[Keys.DOOR] = v } ?: it.remove(Keys.DOOR)
             status.climateOn?.let { v -> it[Keys.CLIMATE] = v } ?: it.remove(Keys.CLIMATE)
             status.batteryCharging?.let { v -> it[Keys.CHARGING] = v } ?: it.remove(Keys.CHARGING)
+            if (status.lockState == LockState.LOCKED) it[Keys.LAST_LOCKED] = System.currentTimeMillis()
         }
         // Redraw any placed home-screen widgets.
         com.i5autolock.widget.AutoLockWidget.refresh(context)

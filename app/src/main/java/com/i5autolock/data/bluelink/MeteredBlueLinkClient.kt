@@ -47,7 +47,8 @@ class MeteredBlueLinkClient(
 
     override suspend fun clearSession() = delegate.clearSession()
 
-    override suspend fun resetDeviceRegistration() = delegate.resetDeviceRegistration()
+    override suspend fun resetDeviceRegistration(): CommandResult =
+        measuredCommand("resetDeviceRegistration") { delegate.resetDeviceRegistration() }
 
     override suspend fun diagnose(vehicleId: String): String = delegate.diagnose(vehicleId)
 

@@ -40,7 +40,12 @@ class AutoLockWidget : AppWidgetProvider() {
                     "UNLOCKED" -> "Unlocked" to 0xFFFFC24B.toInt()
                     else -> "Unknown" to 0xFFFFFFFF.toInt()
                 }
-                setTextViewText(R.id.widget_lock_state, lockLabel)
+                val label = if (cached.lockState == "LOCKED" && cached.lastLockedAtEpochMs > 0) {
+                    "$lockLabel · ${agoLabel(cached.lastLockedAtEpochMs)}"
+                } else {
+                    lockLabel
+                }
+                setTextViewText(R.id.widget_lock_state, label)
                 setTextColor(R.id.widget_lock_state, lockColor)
                 setTextViewText(R.id.widget_summary, cached.summary)
 
@@ -67,6 +72,17 @@ class AutoLockWidget : AppWidgetProvider() {
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+    }
+
+    /** Compact relative time for the "Locked X ago" widget line. */
+    private fun agoLabel(epochMs: Long): String {
+        val mins = ((System.currentTimeMillis() - epochMs) / 60_000L).toInt()
+        return when {
+            mins <= 0 -> "just now"
+            mins < 60 -> "${mins}m ago"
+            mins < 24 * 60 -> "${mins / 60}h ago"
+            else -> "${mins / (24 * 60)}d ago"
+        }
     }
 
     companion object {

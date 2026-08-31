@@ -59,6 +59,8 @@ class AutoLockController @Inject constructor(
     private var runJob: Job? = null
 
     @Volatile private var skipGrace = false
+    // Set when a walk-away signal (Activity Recognition or geofence) confirms you left the car.
+    @Volatile private var walkAwayConfirmed = false
 
     /** Bluetooth (or manual) trigger: begin an evaluation. */
     fun onTriggerFired() {
@@ -73,10 +75,12 @@ class AutoLockController @Inject constructor(
     }
 
     fun onWalkingConfirmed() = scope.launch {
+        walkAwayConfirmed = true
         machine?.let { advance(it.next(_state.value.detection, DetectionEvent.WalkingConfirmed)) }
     }
 
     fun onMovedBeyondGeofence() = scope.launch {
+        walkAwayConfirmed = true
         machine?.let { advance(it.next(_state.value.detection, DetectionEvent.MovedBeyondGeofence)) }
     }
 
@@ -92,6 +96,7 @@ class AutoLockController @Inject constructor(
     private suspend fun runEvaluation() = mutex.withLock {
         try {
         skipGrace = false
+        walkAwayConfirmed = false
         val settings = settingsRepo.settings.first()
         if (settings.vehicleId == null) {
             log.add(LogLevel.WARN, "No vehicle selected; ignoring trigger.")
@@ -126,7 +131,13 @@ class AutoLockController @Inject constructor(
         val confirmDeadline = System.currentTimeMillis() + CONFIRM_TIMEOUT_MS
         while (_state.value.detection == DetectionState.CONFIRMING) {
             if (System.currentTimeMillis() > confirmDeadline) {
-                // No corroboration in time — proceed anyway on the BT signal alone.
+                // No corroboration in time. If the user requires a walk-away confirmation, don't
+                // lock on the Bluetooth signal alone — skip. Otherwise proceed on BT.
+                if (settings.requireWalkAwayConfirmation && !walkAwayConfirmed) {
+                    _state.value = _state.value.copy(detection = DetectionState.SKIPPED, graceRemaining = 0)
+                    log.add(LogLevel.INFO, "No walk-away confirmation within the window — not locking.")
+                    return
+                }
                 advance(DetectionState.GRACE)
                 break
             }
@@ -135,6 +146,7 @@ class AutoLockController @Inject constructor(
                 val here = locationHelper.currentLocation()
                 if (here != null && geoStart.distanceTo(here) >= settings.geofenceRadiusMeters) {
                     log.add(LogLevel.INFO, "Moved beyond the geofence — confirmed you left.")
+                    walkAwayConfirmed = true
                     machine?.let { advance(it.next(_state.value.detection, DetectionEvent.MovedBeyondGeofence)) }
                 }
             }
@@ -177,10 +189,11 @@ class AutoLockController @Inject constructor(
         _state.value = _state.value.copy(statusSummary = summary)
         statusCache.saveStatus(status, StatusSummary.build(status, settings.notificationFields, summaryLabels))
 
-        when (val decision = LockPolicy.decide(status)) {
+        when (val decision = LockPolicy.decide(status, dontLockIfOpen = settings.dontLockIfOpen)) {
             is LockDecision.Skip -> {
                 _state.value = _state.value.copy(detection = DetectionState.SKIPPED, graceRemaining = 0)
                 log.add(LogLevel.INFO, "Skipped: ${decision.reason}.")
+                maybePostDeparture(settings, status, locked = false, skipReason = decision.reason)
             }
             LockDecision.Lock -> {
                 if (settings.requireConfirmationBeforeLock) {
@@ -219,31 +232,109 @@ class AutoLockController @Inject constructor(
                 detection = DetectionState.LOCKED,
                 lastLockAtEpochMs = System.currentTimeMillis(),
             )
+            maybePostDeparture(settings, status, locked = true)
             return
         }
-        when (val result = client.lock(settings.vehicleId!!)) {
-            is CommandResult.Success -> {
-                log.add(LogLevel.SUCCESS, "Car locked automatically.")
-                // Reflect the new locked state in the notification summary + widget cache,
-                // otherwise the "Locked" notification would still show the pre-lock "Unlocked".
-                val locked = status.copy(
-                    lockState = com.i5autolock.data.bluelink.model.LockState.LOCKED,
-                    anyDoorOpen = false,
-                )
-                val summary = if (settings.showStatusInNotification) {
-                    StatusSummary.build(locked, settings.notificationFields, summaryLabels).ifBlank { null }
-                } else null
-                _state.value = _state.value.copy(
-                    detection = DetectionState.LOCKED,
-                    lastLockAtEpochMs = System.currentTimeMillis(),
-                    statusSummary = summary,
-                )
-                statusCache.saveStatus(locked, StatusSummary.build(locked, settings.notificationFields, summaryLabels))
+
+        // Send the lock, retrying for up to retryWindowMinutes on retriable failures (car asleep /
+        // temporary 503). The first retry re-registers the CCSP device in case a stale/throttled
+        // device id is the blocker.
+        val deadline = System.currentTimeMillis() + settings.retryWindowMinutes.coerceAtLeast(0) * 60_000L
+        var attempt = 0
+        var backoffMs = 20_000L
+        while (true) {
+            attempt++
+            when (val result = client.lock(settings.vehicleId!!)) {
+                is CommandResult.Success -> {
+                    log.add(LogLevel.SUCCESS, "Car locked automatically.")
+                    val confirmed = if (settings.verifyLock) verifyLocked(settings, client, status) else true
+                    onLocked(settings, status)
+                    if (!confirmed) log.add(LogLevel.WARN, "Car still reported unlocked after locking — sent one more lock.")
+                    maybePostDeparture(settings, status, locked = true)
+                    return
+                }
+                CommandResult.NotAuthenticated -> { fail("Not signed in — please log in again."); return }
+                CommandResult.RateLimited, is CommandResult.Failure -> {
+                    val reason = (result as? CommandResult.Failure)?.reason ?: "rate-limited"
+                    val retriable = System.currentTimeMillis() < deadline
+                    if (!retriable) {
+                        fail("Lock failed: $reason")
+                        maybePostDeparture(settings, status, locked = false, skipReason = reason)
+                        return
+                    }
+                    // First retry: refresh the device registration (stale id is a common cause).
+                    if (attempt == 1) {
+                        log.add(LogLevel.INFO, "Lock didn't go through — re-registering device and retrying…")
+                        runCatching { client.resetDeviceRegistration() }
+                    } else {
+                        log.add(LogLevel.INFO, "Lock retry $attempt in ${backoffMs / 1000}s (car may be asleep)…")
+                    }
+                    delay(backoffMs)
+                    backoffMs = (backoffMs * 2).coerceAtMost(120_000L)
+                }
             }
-            CommandResult.RateLimited -> fail("Locking is temporarily rate-limited. Try again shortly.")
-            CommandResult.NotAuthenticated -> fail("Not signed in — please log in again.")
-            is CommandResult.Failure -> fail("Lock failed: ${result.reason}")
         }
+    }
+
+    /** Reflects the locked state in UI + notification summary + widget cache. */
+    private suspend fun onLocked(
+        settings: com.i5autolock.data.settings.AppSettings,
+        status: com.i5autolock.data.bluelink.model.VehicleStatus,
+    ) {
+        val locked = status.copy(
+            lockState = com.i5autolock.data.bluelink.model.LockState.LOCKED,
+            anyDoorOpen = false,
+        )
+        val summary = if (settings.showStatusInNotification) {
+            StatusSummary.build(locked, settings.notificationFields, summaryLabels).ifBlank { null }
+        } else null
+        _state.value = _state.value.copy(
+            detection = DetectionState.LOCKED,
+            lastLockAtEpochMs = System.currentTimeMillis(),
+            statusSummary = summary,
+        )
+        statusCache.saveStatus(locked, StatusSummary.build(locked, settings.notificationFields, summaryLabels))
+    }
+
+    /** After a lock, read status once and re-send a single lock if the car still reports unlocked. */
+    private suspend fun verifyLocked(
+        settings: com.i5autolock.data.settings.AppSettings,
+        client: com.i5autolock.data.bluelink.BlueLinkClient,
+        status: com.i5autolock.data.bluelink.model.VehicleStatus,
+    ): Boolean {
+        val check = runCatching { client.status(settings.vehicleId!!, forceRefresh = false) }.getOrNull()
+            ?: return true // couldn't verify — trust the command's own success
+        if (check.lockState != com.i5autolock.data.bluelink.model.LockState.UNLOCKED) return true
+        log.add(LogLevel.INFO, "Verify: car still shows unlocked — sending one more lock.")
+        runCatching { client.lock(settings.vehicleId!!) }
+        return false
+    }
+
+    /** Posts the optional one-shot departure summary ("Locked ✓ · 72% · doors closed · Parked …"). */
+    private suspend fun maybePostDeparture(
+        settings: com.i5autolock.data.settings.AppSettings,
+        status: com.i5autolock.data.bluelink.model.VehicleStatus,
+        locked: Boolean,
+        skipReason: String? = null,
+    ) {
+        if (!settings.departureSummary) return
+        val ctx = appContext
+        val parts = mutableListOf<String>()
+        parts += if (locked) ctx.getString(com.i5autolock.R.string.departure_locked)
+        else ctx.getString(com.i5autolock.R.string.departure_not_locked)
+        status.evBatteryPercent?.let { parts += "$it%" }
+        if (status.isOpenSomewhere) {
+            parts += ctx.getString(com.i5autolock.R.string.departure_open)
+        } else if (status.anyDoorOpen == false) {
+            parts += ctx.getString(com.i5autolock.R.string.departure_closed)
+        }
+        val parked = settingsRepo.settings.first().parkedLabel
+        parked?.takeIf { it.isNotBlank() }?.let { parts += ctx.getString(com.i5autolock.R.string.departure_parked, it) }
+        val title = if (locked) ctx.getString(com.i5autolock.R.string.departure_title_locked)
+        else ctx.getString(com.i5autolock.R.string.departure_title_skipped)
+        val body = skipReason?.takeIf { !locked }?.let { "$it · ${parts.joinToString(" · ")}" }
+            ?: parts.joinToString(" · ")
+        com.i5autolock.service.AutoLockNotification.postDeparture(ctx, title, body)
     }
 
     private fun fail(message: String) {

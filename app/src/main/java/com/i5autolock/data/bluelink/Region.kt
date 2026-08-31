@@ -1,14 +1,14 @@
 package com.i5autolock.data.bluelink
 
 /**
- * Supported BlueLink / UVO regions. EU is the primary target and uses an OAuth
- * authorization-code flow; other regions typically use direct username/password login.
+ * Supported BlueLink / UVO regions. EU is the primary target (email + password via the
+ * OneApp/CCI flow); other regions are not yet implemented.
  */
-enum class Region(val displayName: String, val requiresOauthLogin: Boolean) {
-    EU("Europe", requiresOauthLogin = true),
-    US("United States", requiresOauthLogin = false),
-    CA("Canada", requiresOauthLogin = false),
-    AU("Australia", requiresOauthLogin = false),
+enum class Region(val displayName: String) {
+    EU("Europe"),
+    US("United States"),
+    CA("Canada"),
+    AU("Australia"),
     ;
 
     companion object {

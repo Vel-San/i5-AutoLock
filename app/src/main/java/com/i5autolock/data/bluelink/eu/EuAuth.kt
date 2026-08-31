@@ -35,22 +35,6 @@ object EuAuth {
             ?.get(1)
     }
 
-    /**
-     * Lenient extractor for a value the user pasted from an external browser. Accepts a full
-     * redirect URL, a raw query string, `code=...`, or a bare code token.
-     */
-    fun extractAuthCodeLoose(input: String): String? {
-        val trimmed = input.trim()
-        if (trimmed.isEmpty()) return null
-        extractAuthCode(trimmed)?.let { return it.trim() }
-        if (trimmed.contains("code=")) {
-            val after = trimmed.substringAfter("code=")
-            return after.substringBefore('&').trim().ifBlank { null }
-        }
-        // A pasted bare code shouldn't contain spaces or URL punctuation.
-        return if (trimmed.none { it.isWhitespace() } && !trimmed.contains('/')) trimmed else null
-    }
-
     /** Reads a single query parameter value from a URL, or null. */
     fun queryParam(url: String, name: String): String? {
         val q = url.substringAfter('?', "")

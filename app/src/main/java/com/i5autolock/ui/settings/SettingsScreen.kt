@@ -12,9 +12,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -200,8 +203,18 @@ fun SettingsScreen(
                     ) { Text(stringResource(R.string.set_diagnose_api)) }
                     OutlinedButton(
                         onClick = viewModel::resetDeviceRegistration,
+                        enabled = !extras.resettingDevice,
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.set_reset_device)) }
+                    ) {
+                        if (extras.resettingDevice) {
+                            CircularProgressIndicator(
+                                Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(stringResource(R.string.set_reset_device))
+                    }
                     Text(
                         stringResource(R.string.set_reset_device_hint),
                         style = MaterialTheme.typography.bodySmall,
@@ -284,6 +297,52 @@ fun SettingsScreen(
                         valueRange = 10f..100f,
                     )
                 }
+                RowToggle(
+                    stringResource(R.string.set_require_walkaway_title),
+                    stringResource(R.string.set_require_walkaway_sub),
+                    settings.requireWalkAwayConfirmation,
+                    viewModel::setRequireWalkAway,
+                )
+            }
+
+            // Lock reliability.
+            Section(stringResource(R.string.sec_reliability)) {
+                RowToggle(
+                    stringResource(R.string.set_verify_lock_title),
+                    stringResource(R.string.set_verify_lock_sub),
+                    settings.verifyLock,
+                    viewModel::setVerifyLock,
+                )
+                RowToggle(
+                    stringResource(R.string.set_dont_lock_open_title),
+                    stringResource(R.string.set_dont_lock_open_sub),
+                    settings.dontLockIfOpen,
+                    viewModel::setDontLockIfOpen,
+                )
+                RowToggle(
+                    stringResource(R.string.set_departure_title),
+                    stringResource(R.string.set_departure_sub),
+                    settings.departureSummary,
+                    viewModel::setDepartureSummary,
+                )
+                Text(
+                    if (settings.retryWindowMinutes == 0) {
+                        stringResource(R.string.set_retry_window_off)
+                    } else {
+                        stringResource(R.string.set_retry_window_value, settings.retryWindowMinutes)
+                    },
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    stringResource(R.string.set_retry_window_sub),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Slider(
+                    value = settings.retryWindowMinutes.toFloat(),
+                    onValueChange = { viewModel.setRetryWindowMinutes(it.toInt()) },
+                    valueRange = 0f..15f,
+                    steps = 14,
+                )
             }
 
             // Timing.
@@ -312,6 +371,12 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+                RowToggle(
+                    stringResource(R.string.set_live_wake_title),
+                    stringResource(R.string.set_live_wake_sub),
+                    settings.liveWakeRefresh,
+                    viewModel::setLiveWakeRefresh,
+                )
             }
 
             // Low 12V battery warning.

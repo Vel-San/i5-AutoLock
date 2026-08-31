@@ -26,8 +26,12 @@ data class VehicleStatus(
     val climateOn: Boolean? = null,
     val twelveVoltPercent: Int? = null,
     val anyDoorOpen: Boolean? = null,
+    val anyWindowOpen: Boolean? = null,
 ) {
     val isUnlocked: Boolean get() = lockState == LockState.UNLOCKED
+
+    /** True when a door or window is open (so the car can't actually lock). */
+    val isOpenSomewhere: Boolean get() = anyDoorOpen == true || anyWindowOpen == true
 }
 
 /**
@@ -43,6 +47,7 @@ fun VehicleStatus.mergedOnto(old: VehicleStatus?): VehicleStatus {
         twelveVoltPercent = twelveVoltPercent ?: old.twelveVoltPercent,
         climateOn = climateOn ?: old.climateOn,
         anyDoorOpen = anyDoorOpen ?: old.anyDoorOpen,
+        anyWindowOpen = anyWindowOpen ?: old.anyWindowOpen,
         batteryCharging = batteryCharging ?: old.batteryCharging,
     )
 }
